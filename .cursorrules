@@ -1,0 +1,79 @@
+# GoGetaJob (GGJ) Project Rules
+
+## Environment Variable Prefix
+All environment variables MUST use the GGJ_ prefix:
+- GGJ_PORT
+- GGJ_DATABASE_URL
+- GGJ_JWT_ACCESS_SECRET
+- etc.
+
+## Never Commit Secrets
+- Real secrets go in .env (gitignored)
+- Example values go in .env.example
+- Use strong, unique secrets in production
+
+## User-Scoped Data
+ALL database queries that fetch user-specific data MUST include:
+```typescript
+where: {
+  userId: request.user.userId,
+  // ... other conditions
+}
+```
+
+## API Response Format
+Success responses:
+```typescript
+{ data: T, message?: string }
+```
+
+Error responses:
+```typescript
+{ statusCode: number, message: string, error?: string }
+```
+
+## Validation
+- Use Zod for all input validation
+- Define schemas in dedicated `schemas.ts` files
+- Validate at the route level, not in business logic
+
+## Authentication
+- Access tokens: short-lived (15 minutes default)
+- Refresh tokens: long-lived (7 days default)
+- Store refresh token HASH in database, never plaintext
+- Single-use refresh tokens (revoke on use)
+
+## Frontend-Backend Communication
+- API base URL from NEXT_PUBLIC_GGJ_API_URL
+- Attach Bearer token to all protected requests
+- Auto-refresh on 401, retry once
+- Show toast notifications for user feedback
+
+## Code Organization
+Backend:
+- plugins/ - Fastify plugins (auth, prisma, security)
+- modules/ - Feature modules (auth, applications, etc.)
+- utils/ - Shared utilities (tokens, password)
+- config/ - Environment config with Zod validation
+
+Frontend:
+- app/(auth)/ - Public routes (login, register)
+- app/(app)/ - Protected routes (dashboard, applications)
+- components/ - Reusable UI components
+- lib/ - API client, auth helpers, types
+
+## Testing
+- Write integration tests for all API endpoints
+- Test happy paths AND error cases
+- Test user isolation (cross-user access)
+- Use Vitest for backend tests
+
+## Documentation
+- Update PROJECT_STATUS.md after completing phases
+- Keep README.md current with setup instructions
+- Document all API endpoints with examples
+
+## Git Workflow
+- Never commit .env files
+- Never commit node_modules or build artifacts
+- Use meaningful commit messages
