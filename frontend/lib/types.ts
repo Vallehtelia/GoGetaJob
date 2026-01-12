@@ -18,6 +18,7 @@ export interface UserProfile {
   location: string | null;
   headline: string | null;
   summary: string | null;
+  profilePictureUrl: string | null;
   linkedinUrl: string | null;
   githubUrl: string | null;
   websiteUrl: string | null;
@@ -283,6 +284,7 @@ export interface CvSnapshotHeader {
   location: string | null;
   headline: string | null;
   summary: string | null;
+  profilePictureUrl: string | null;
   linkedinUrl: string | null;
   githubUrl: string | null;
   websiteUrl: string | null;
@@ -349,4 +351,24 @@ export interface CvSnapshot {
 
 export interface CreateSnapshotInput {
   cvDocumentId: string;
+}
+
+// ============================================
+// OpenAI API Key Types
+// ============================================
+
+export interface OpenAiKeyStatus {
+  hasKey: boolean;
+  last4: string | null;
+  updatedAt: string | null;
+}
+
+export interface SetOpenAiKeyInput {
+  apiKey: string;
+}
+
+export interface SetOpenAiKeyResponse {
+  message: string;
+  hasKey: boolean;
+  last4: string;
 }

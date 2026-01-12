@@ -43,6 +43,12 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // OpenAI state
+  const [openaiStatus, setOpenaiStatus] = useState<{ hasKey: boolean; last4: string | null; updatedAt: string | null } | null>(null);
+  const [openaiKey, setOpenaiKey] = useState('');
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [loadingOpenai, setLoadingOpenai] = useState(false);
+
   // Library state
   const [workExperiences, setWorkExperiences] = useState<UserWorkExperience[]>([]);
   const [educations, setEducations] = useState<UserEducation[]>([]);
@@ -72,6 +78,57 @@ export default function SettingsPage() {
       loadLibrary();
     }
   }, [activeTab]);
+
+  // Load OpenAI status when API tab is active
+  useEffect(() => {
+    if (activeTab === 'api') {
+      loadOpenAiStatus();
+    }
+  }, [activeTab]);
+
+  const loadOpenAiStatus = async () => {
+    try {
+      setLoadingOpenai(true);
+      const status = await api.getOpenAiKeyStatus();
+      setOpenaiStatus(status);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to load OpenAI key status');
+    } finally {
+      setLoadingOpenai(false);
+    }
+  };
+
+  const handleSaveOpenAiKey = async () => {
+    if (!openaiKey.trim()) {
+      toast.error('Please enter an API key');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const response = await api.setOpenAiKey(openaiKey);
+      setOpenaiStatus({ hasKey: true, last4: response.last4, updatedAt: new Date().toISOString() });
+      setOpenaiKey(''); // Clear input
+      toast.success('OpenAI API key saved successfully');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to save API key');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteOpenAiKey = async () => {
+    try {
+      setSaving(true);
+      await api.deleteOpenAiKey();
+      setOpenaiStatus({ hasKey: false, last4: null, updatedAt: null });
+      toast.success('OpenAI API key deleted');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete API key');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const loadProfile = async () => {
     try {
@@ -269,6 +326,95 @@ export default function SettingsPage() {
                 <CardTitle>Personal Information</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
+                {/* Profile Picture */}
+                <div className="space-y-3">
+                  <Label>Profile Picture</Label>
+                  <div className="flex items-start gap-6">
+                    {/* Preview */}
+                    <div className="flex-shrink-0">
+                      {profile.profilePictureUrl ? (
+                        <img
+                          src={`${process.env.NEXT_PUBLIC_GGJ_API_URL || 'http://localhost:3000'}${profile.profilePictureUrl}`}
+                          alt="Profile"
+                          className="w-32 h-32 rounded-full object-cover border-2 border-gray-200"
+                        />
+                      ) : (
+                        <div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center border-2 border-gray-200">
+                          <User className="h-12 w-12 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Upload Controls */}
+                    <div className="flex-1 space-y-3">
+                      <div>
+                        <input
+                          type="file"
+                          id="profilePicture"
+                          accept="image/jpeg,image/jpg,image/png,image/webp"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+
+                            // Validate file size (5MB)
+                            if (file.size > 5 * 1024 * 1024) {
+                              toast.error('File size must be less than 5MB');
+                              return;
+                            }
+
+                            try {
+                              setSaving(true);
+                              const updatedProfile = await api.uploadProfilePicture(file);
+                              setProfile(updatedProfile);
+                              toast.success('Profile picture uploaded successfully');
+                            } catch (error: any) {
+                              toast.error(error.message || 'Failed to upload profile picture');
+                            } finally {
+                              setSaving(false);
+                            }
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => document.getElementById('profilePicture')?.click()}
+                          disabled={saving}
+                        >
+                          {saving ? 'Uploading...' : 'Upload Picture'}
+                        </Button>
+                        {profile.profilePictureUrl && (
+                          <Button
+                            type="button"
+                            variant="danger"
+                            className="ml-2"
+                            onClick={async () => {
+                              try {
+                                setSaving(true);
+                                const updatedProfile = await api.deleteProfilePicture();
+                                setProfile(updatedProfile);
+                                toast.success('Profile picture removed');
+                              } catch (error: any) {
+                                toast.error(error.message || 'Failed to remove profile picture');
+                              } finally {
+                                setSaving(false);
+                              }
+                            }}
+                            disabled={saving}
+                          >
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        JPG, PNG or WebP. Max 5MB. Recommended: 400x400px or larger, square aspect ratio.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t pt-6" />
+
                 {/* Basic Info */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -739,15 +885,115 @@ export default function SettingsPage() {
 
       {/* API Tab Content */}
       {activeTab === "api" && (
-        <div className="max-w-3xl">
+        <div className="max-w-3xl space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>API Configuration</CardTitle>
+              <CardTitle>AI (OpenAI) Settings</CardTitle>
             </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                API settings coming soon...
-              </p>
+            <CardContent className="space-y-6">
+              {loadingOpenai ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-accent" />
+                </div>
+              ) : (
+                <>
+                  {/* Status Display */}
+                  <div className="space-y-2">
+                    <Label>OpenAI API Key Status</Label>
+                    {openaiStatus?.hasKey ? (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-green-900">
+                              ✓ API Key Saved
+                            </p>
+                            <p className="text-xs text-green-700 mt-1">
+                              Ends with: ****{openaiStatus.last4}
+                            </p>
+                            {openaiStatus.updatedAt && (
+                              <p className="text-xs text-green-600 mt-1">
+                                Last updated: {new Date(openaiStatus.updatedAt).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                        <p className="text-sm text-gray-600">No API key saved</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Security Notice */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <p className="text-sm text-blue-900 font-medium mb-2">
+                      🔒 Security Notice
+                    </p>
+                    <p className="text-xs text-blue-800">
+                      Your API key is stored encrypted on the server and never exposed to your browser. 
+                      We never log or display your full API key.
+                    </p>
+                  </div>
+
+                  {/* Input Section */}
+                  <div className="space-y-3">
+                    <Label htmlFor="openaiKey">
+                      {openaiStatus?.hasKey ? 'Replace API Key' : 'OpenAI API Key'}
+                    </Label>
+                    <Input
+                      id="openaiKey"
+                      type="password"
+                      placeholder="sk-proj-..."
+                      value={openaiKey}
+                      onChange={(e) => setOpenaiKey(e.target.value)}
+                      disabled={saving}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Your OpenAI API key (starts with &ldquo;sk-&rdquo; or &ldquo;sk-proj-&rdquo;)
+                    </p>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-3">
+                    <Button
+                      onClick={handleSaveOpenAiKey}
+                      disabled={saving || !openaiKey.trim()}
+                    >
+                      {saving ? 'Saving...' : openaiStatus?.hasKey ? 'Update Key' : 'Save Key'}
+                    </Button>
+                    
+                    {openaiStatus?.hasKey && (
+                      <Button
+                        variant="danger"
+                        onClick={handleDeleteOpenAiKey}
+                        disabled={saving}
+                      >
+                        Delete Key
+                      </Button>
+                    )}
+
+                    <Button
+                      variant="secondary"
+                      onClick={() => setShowHelpModal(true)}
+                    >
+                      Help
+                    </Button>
+                  </div>
+
+                  {/* Future Setup Notice */}
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <p className="text-sm text-yellow-900 font-medium mb-2">
+                      ℹ️ Future Setup (Recommended)
+                    </p>
+                    <p className="text-xs text-yellow-800">
+                      Currently, this is for future AI features. When implemented, all OpenAI calls
+                      will be made from the server using your encrypted key—never from your browser.
+                      This keeps your API key secure.
+                    </p>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -817,7 +1063,143 @@ export default function SettingsPage() {
           onCancel={() => setDeleteConfirm(null)}
         />
       )}
+
+      {/* OpenAI Help Modal */}
+      {showHelpModal && (
+        <OpenAiHelpModal onClose={() => setShowHelpModal(false)} />
+      )}
     </div>
+  );
+}
+
+// OpenAI Help Modal Component
+function OpenAiHelpModal({ onClose }: { onClose: () => void }) {
+  return (
+    <Modal isOpen={true} onClose={onClose} title="How to create an OpenAI API key">
+      <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+        {/* Steps */}
+        <div className="space-y-3">
+          <h3 className="font-semibold text-navy-900">Steps:</h3>
+          <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
+            <li>Log in to OpenAI Developer Platform</li>
+            <li>Open your Project (or create one)</li>
+            <li>Go to Project settings → API Keys</li>
+            <li>Click &ldquo;Create new secret key&rdquo;</li>
+            <li>Copy the key immediately (it is shown once) and store it somewhere safe</li>
+            <li>(Optional) Set key permissions (All / Restricted / Read-only) depending on your needs</li>
+            <li>Paste the key into GoGet-a-Job → Settings → AI (OpenAI) and click Save</li>
+          </ol>
+        </div>
+
+        {/* Links */}
+        <div className="space-y-2">
+          <h3 className="font-semibold text-navy-900">Helpful Links:</h3>
+          <ul className="space-y-2 text-sm">
+            <li>
+              <a
+                href="https://platform.openai.com/settings/organization/api-keys"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-700 underline"
+              >
+                API keys page →
+              </a>
+            </li>
+            <li>
+              <a
+                href="https://platform.openai.com/docs/quickstart"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-700 underline"
+              >
+                Quickstart guide →
+              </a>
+            </li>
+            <li>
+              <a
+                href="https://help.openai.com/en/articles/5112595-best-practices-for-api-key-safety"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-700 underline"
+              >
+                API key safety best practices →
+              </a>
+            </li>
+            <li>
+              <a
+                href="https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-700 underline"
+              >
+                Where to find API key →
+              </a>
+            </li>
+            <li>
+              <a
+                href="https://help.openai.com/en/articles/9186755-managing-your-work-in-the-api-platform-with-projects"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-700 underline"
+              >
+                Managing projects & API keys →
+              </a>
+            </li>
+            <li>
+              <a
+                href="https://help.openai.com/en/articles/8867743-assign-api-key-permissions"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-700 underline"
+              >
+                Assign key permissions →
+              </a>
+            </li>
+          </ul>
+        </div>
+
+        {/* Security Warning */}
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-sm font-semibold text-red-900 mb-2">
+            ⚠️ Never share your API key
+          </p>
+          <p className="text-xs text-red-800">
+            GoGet-a-Job stores it encrypted on the server and never exposes it to the browser. 
+            Keep your key secret and never commit it to version control or share it publicly.
+          </p>
+        </div>
+
+        {/* Future Implementation Note */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <p className="text-sm font-semibold text-blue-900 mb-2">
+            Future Setup (Recommended)
+          </p>
+          <p className="text-xs text-blue-800 mb-2">
+              Do NOT call OpenAI directly from the frontend. Instead, create backend &ldquo;AI endpoints&rdquo; 
+            that use the encrypted OpenAI key stored server-side.
+          </p>
+          <p className="text-xs text-blue-800 mb-2">
+            <strong>Example endpoint to implement later:</strong>
+          </p>
+          <code className="block bg-blue-100 p-2 rounded text-xs text-blue-900">
+            POST /ai/cv/optimize
+          </code>
+          <p className="text-xs text-blue-700 mt-2">
+            The backend reads your stored OpenAI key (encrypted at rest), calls OpenAI from the server,
+            and returns the optimized CV content/suggestions.
+          </p>
+          <p className="text-xs text-blue-700 mt-2">
+            <strong>Reason:</strong> This prevents API key exposure in the browser and keeps all 
+            OpenAI usage server-side only.
+          </p>
+        </div>
+
+        {/* Close Button */}
+        <div className="flex justify-end pt-4">
+          <Button onClick={onClose}>Close</Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

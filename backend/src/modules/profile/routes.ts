@@ -2,6 +2,10 @@
 
 import type { FastifyInstance } from 'fastify';
 import { updateProfileSchema } from './schemas.js';
+import { pipeline } from 'stream/promises';
+import { createWriteStream } from 'fs';
+import { randomUUID } from 'crypto';
+import path from 'path';
 
 export default async function profileRoutes(fastify: FastifyInstance) {
   // Get current user's profile
@@ -22,6 +26,7 @@ export default async function profileRoutes(fastify: FastifyInstance) {
             location: true,
             headline: true,
             summary: true,
+            profilePictureUrl: true,
             linkedinUrl: true,
             githubUrl: true,
             websiteUrl: true,
@@ -66,6 +71,7 @@ export default async function profileRoutes(fastify: FastifyInstance) {
             location: true,
             headline: true,
             summary: true,
+            profilePictureUrl: true,
             linkedinUrl: true,
             githubUrl: true,
             websiteUrl: true,
@@ -85,6 +91,125 @@ export default async function profileRoutes(fastify: FastifyInstance) {
         }
         fastify.log.error(error);
         throw error;
+      }
+    },
+  });
+
+  // Upload profile picture
+  fastify.post('/profile/picture', {
+    onRequest: [fastify.authenticate],
+    handler: async (request, reply) => {
+      try {
+        const userId = request.user.userId;
+        
+        // Get the uploaded file
+        const data = await request.file();
+        
+        if (!data) {
+          return reply.code(400).send({
+            statusCode: 400,
+            error: 'Bad Request',
+            message: 'No file uploaded',
+          });
+        }
+
+        // Validate file type
+        const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+        if (!allowedMimeTypes.includes(data.mimetype)) {
+          return reply.code(400).send({
+            statusCode: 400,
+            error: 'Bad Request',
+            message: 'Invalid file type. Only JPEG, PNG, and WebP images are allowed.',
+          });
+        }
+
+        // Generate unique filename
+        const ext = data.filename.split('.').pop() || 'jpg';
+        const filename = `${userId}-${randomUUID()}.${ext}`;
+        const uploadsDir = path.join(process.cwd(), 'uploads', 'profile-pictures');
+        const filepath = path.join(uploadsDir, filename);
+
+        // Save file
+        await pipeline(data.file, createWriteStream(filepath));
+
+        // Update user's profile picture URL
+        const profilePictureUrl = `/uploads/profile-pictures/${filename}`;
+        const updatedUser = await fastify.prisma.user.update({
+          where: { id: userId },
+          data: { profilePictureUrl },
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            location: true,
+            headline: true,
+            summary: true,
+            profilePictureUrl: true,
+            linkedinUrl: true,
+            githubUrl: true,
+            websiteUrl: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        });
+
+        return reply.send({
+          message: 'Profile picture uploaded successfully',
+          profile: updatedUser,
+        });
+      } catch (error: any) {
+        fastify.log.error(error);
+        return reply.code(500).send({
+          statusCode: 500,
+          error: 'Internal Server Error',
+          message: 'Failed to upload profile picture',
+        });
+      }
+    },
+  });
+
+  // Delete profile picture
+  fastify.delete('/profile/picture', {
+    onRequest: [fastify.authenticate],
+    handler: async (request, reply) => {
+      try {
+        const userId = request.user.userId;
+
+        // Update user's profile picture URL to null
+        const updatedUser = await fastify.prisma.user.update({
+          where: { id: userId },
+          data: { profilePictureUrl: null },
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            location: true,
+            headline: true,
+            summary: true,
+            profilePictureUrl: true,
+            linkedinUrl: true,
+            githubUrl: true,
+            websiteUrl: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        });
+
+        return reply.send({
+          message: 'Profile picture deleted successfully',
+          profile: updatedUser,
+        });
+      } catch (error: any) {
+        fastify.log.error(error);
+        return reply.code(500).send({
+          statusCode: 500,
+          error: 'Internal Server Error',
+          message: 'Failed to delete profile picture',
+        });
       }
     },
   });

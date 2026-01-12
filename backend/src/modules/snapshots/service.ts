@@ -108,6 +108,7 @@ export async function createSnapshotFromCv(
         location: user.location,
         headline: user.headline,
         summary: user.summary,
+        profilePictureUrl: user.profilePictureUrl,
         linkedinUrl: user.linkedinUrl,
         githubUrl: user.githubUrl,
         websiteUrl: user.websiteUrl,

@@ -6,7 +6,7 @@ import { ToastContainer } from "@/components/Toast";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "GoGetaJob (GGJ) - Job Application Tracker",
+  title: "GoGet-a-Job - Job Application Tracker",
   description: "Track your job applications with ease",
 };
 

@@ -15,15 +15,16 @@ model User {
   passwordHash String   @map("password_hash")
   
   // Profile fields
-  firstName    String?  @db.VarChar(100) @map("first_name")
-  lastName     String?  @db.VarChar(100) @map("last_name")
-  phone        String?  @db.VarChar(50)
-  location     String?  @db.VarChar(120)
-  headline     String?  @db.VarChar(160)
-  summary      String?  @db.Text
-  linkedinUrl  String?  @db.VarChar(300) @map("linkedin_url")
-  githubUrl    String?  @db.VarChar(300) @map("github_url")
-  websiteUrl   String?  @db.VarChar(300) @map("website_url")
+  firstName         String?  @db.VarChar(100) @map("first_name")
+  lastName          String?  @db.VarChar(100) @map("last_name")
+  phone             String?  @db.VarChar(50)
+  location          String?  @db.VarChar(120)
+  headline          String?  @db.VarChar(160)
+  summary           String?  @db.Text
+  profilePictureUrl String?  @db.VarChar(500) @map("profile_picture_url")
+  linkedinUrl       String?  @db.VarChar(300) @map("linkedin_url")
+  githubUrl         String?  @db.VarChar(300) @map("github_url")
+  websiteUrl        String?  @db.VarChar(300) @map("website_url")
   
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
@@ -36,6 +37,7 @@ model User {
   skills            UserSkill[]
   projects          UserProject[]
   cvSnapshots       CvSnapshot[]
+  openAiKey         OpenAiKey?
 
   @@map("users")
 }
@@ -286,16 +288,17 @@ model CvSnapshot {
 model CvSnapshotHeader {
   id          String  @id @default(uuid())
   snapshotId  String  @unique @map("snapshot_id")
-  firstName   String? @db.VarChar(100) @map("first_name")
-  lastName    String? @db.VarChar(100) @map("last_name")
-  email       String  @db.VarChar(255)
-  phone       String? @db.VarChar(50)
-  location    String? @db.VarChar(120)
-  headline    String? @db.VarChar(160)
-  summary     String? @db.Text
-  linkedinUrl String? @db.VarChar(300) @map("linkedin_url")
-  githubUrl   String? @db.VarChar(300) @map("github_url")
-  websiteUrl  String? @db.VarChar(300) @map("website_url")
+  firstName         String? @db.VarChar(100) @map("first_name")
+  lastName          String? @db.VarChar(100) @map("last_name")
+  email             String  @db.VarChar(255)
+  phone             String? @db.VarChar(50)
+  location          String? @db.VarChar(120)
+  headline          String? @db.VarChar(160)
+  summary           String? @db.Text
+  profilePictureUrl String? @db.VarChar(500) @map("profile_picture_url")
+  linkedinUrl       String? @db.VarChar(300) @map("linkedin_url")
+  githubUrl         String? @db.VarChar(300) @map("github_url")
+  websiteUrl        String? @db.VarChar(300) @map("website_url")
 
   snapshot CvSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
 
@@ -368,6 +371,24 @@ model CvSnapshotProject {
 
   @@index([snapshotId, order])
   @@map("cv_snapshot_projects")
+}
+
+// ============================================
+// OpenAI API Key Storage (Encrypted)
+// ============================================
+
+model OpenAiKey {
+  id            String   @id @default(uuid())
+  userId        String   @unique @map("user_id")
+  keyCiphertext String   @db.Text @map("key_ciphertext") // base64-encoded encrypted key
+  keyIv         String   @db.VarChar(255) @map("key_iv")  // base64-encoded IV
+  keyTag        String   @db.VarChar(255) @map("key_tag") // base64-encoded auth tag
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("openai_keys")
 }
 
 

@@ -116,6 +116,16 @@ function SnapshotPreview({ snapshot }: { snapshot: CvSnapshot }) {
   const fullName = header && header.firstName && header.lastName
     ? `${header.firstName} ${header.lastName}`
     : header?.email || '';
+  const apiUrl = process.env.NEXT_PUBLIC_GGJ_API_URL || 'http://localhost:3000';
+  const imageUrl = header?.profilePictureUrl ? `${apiUrl}${header.profilePictureUrl}` : null;
+
+  console.log('Snapshot Preview Debug:', {
+    hasHeader: !!header,
+    hasProfilePictureUrl: !!header?.profilePictureUrl,
+    profilePictureUrl: header?.profilePictureUrl,
+    apiUrl,
+    fullImageUrl: imageUrl
+  });
 
   return (
     <Card className="p-8 bg-white shadow-lg">
@@ -123,23 +133,46 @@ function SnapshotPreview({ snapshot }: { snapshot: CvSnapshot }) {
         {/* Header */}
         {header && (
           <div className="border-b-2 border-navy-700 pb-4">
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">{fullName}</h1>
-            {header.headline && (
-              <p className="text-lg text-gray-800 mb-2 font-medium">{header.headline}</p>
-            )}
-            <div className="text-sm text-gray-900 space-y-1">
-              {header.location && <p>{header.location}</p>}
-              {header.phone && <p>{header.phone}</p>}
-              <p>{header.email}</p>
-              {header.websiteUrl && (
-                <p className="text-blue-700 font-semibold">{header.websiteUrl}</p>
+            <div className="flex items-start gap-6">
+              {/* Profile Picture */}
+              {imageUrl && (
+                <div className="flex-shrink-0">
+                  <img
+                    src={imageUrl}
+                    alt={fullName}
+                    className="w-24 h-24 rounded-full object-cover border-2 border-navy-700"
+                    onError={(e) => {
+                      console.error('❌ Snapshot image failed to load!');
+                      console.error('URL:', e.currentTarget.src);
+                    }}
+                    onLoad={() => {
+                      console.log('✅ Snapshot profile picture loaded:', imageUrl);
+                    }}
+                  />
+                </div>
               )}
-              {header.linkedinUrl && (
-                <p className="text-blue-700 font-semibold">{header.linkedinUrl}</p>
-              )}
-              {header.githubUrl && (
-                <p className="text-blue-700 font-semibold">{header.githubUrl}</p>
-              )}
+
+              {/* Text Content */}
+              <div className="flex-1">
+                <h1 className="text-3xl font-bold text-gray-800 mb-2">{fullName}</h1>
+                {header.headline && (
+                  <p className="text-lg text-gray-800 mb-2 font-medium">{header.headline}</p>
+                )}
+                <div className="text-sm text-gray-900 space-y-1">
+                  {header.location && <p>{header.location}</p>}
+                  {header.phone && <p>{header.phone}</p>}
+                  <p>{header.email}</p>
+                  {header.websiteUrl && (
+                    <p className="text-blue-700 font-semibold">{header.websiteUrl}</p>
+                  )}
+                  {header.linkedinUrl && (
+                    <p className="text-blue-700 font-semibold">{header.linkedinUrl}</p>
+                  )}
+                  {header.githubUrl && (
+                    <p className="text-blue-700 font-semibold">{header.githubUrl}</p>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}

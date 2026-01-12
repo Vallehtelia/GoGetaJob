@@ -5,6 +5,7 @@ import { config } from './config/index.js';
 import prismaPlugin from './plugins/prisma.js';
 import authPlugin from './plugins/auth.js';
 import securityPlugin from './plugins/security.js';
+import fileUploadPlugin from './plugins/fileUpload.js';
 
 // Routes
 import healthRoutes from './modules/health/routes.js';
@@ -14,6 +15,7 @@ import profileRoutes from './modules/profile/routes.js';
 import cvRoutes from './modules/cv/routes.js';
 import libraryRoutes from './modules/library/routes.js';
 import snapshotRoutes from './modules/snapshots/routes.js';
+import openaiRoutes from './modules/openai/routes.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const fastify = Fastify({
@@ -33,6 +35,7 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   // Register plugins
   await fastify.register(securityPlugin);
+  await fastify.register(fileUploadPlugin);
   await fastify.register(prismaPlugin);
   await fastify.register(authPlugin);
 
@@ -44,6 +47,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(libraryRoutes);
   await fastify.register(cvRoutes);
   await fastify.register(snapshotRoutes);
+  await fastify.register(openaiRoutes);
 
   // Global error handler
   fastify.setErrorHandler((error, _request, reply) => {

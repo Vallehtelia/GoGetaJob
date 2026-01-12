@@ -35,6 +35,9 @@ import type {
   AddInclusionInput,
   CvSnapshot,
   CreateSnapshotInput,
+  OpenAiKeyStatus,
+  SetOpenAiKeyInput,
+  SetOpenAiKeyResponse,
 } from './types';
 
 // Get API base URL from env or fallback to localhost
@@ -239,6 +242,43 @@ class ApiClient {
       body: JSON.stringify(data),
     });
     console.log('API: Profile updated:', response.profile);
+    return response.profile;
+  }
+
+  async uploadProfilePicture(file: File): Promise<UserProfile> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const accessToken = getAccessToken();
+    if (!accessToken) {
+      throw new Error('No access token found');
+    }
+
+    const response = await fetch(`${this.baseUrl}/profile/picture`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new ApiClientError(
+        error.message || 'Failed to upload profile picture',
+        response.status,
+        error
+      );
+    }
+
+    const data = await response.json();
+    return data.profile;
+  }
+
+  async deleteProfilePicture(): Promise<UserProfile> {
+    const response = await this.request<{ profile: UserProfile }>('/profile/picture', {
+      method: 'DELETE',
+    });
     return response.profile;
   }
 
@@ -638,6 +678,29 @@ class ApiClient {
       method: 'GET',
     });
     return response.data;
+  }
+
+  // ============================================
+  // OpenAI API Key endpoints
+  // ============================================
+
+  async getOpenAiKeyStatus(): Promise<OpenAiKeyStatus> {
+    return this.request<OpenAiKeyStatus>('/settings/openai', {
+      method: 'GET',
+    });
+  }
+
+  async setOpenAiKey(apiKey: string): Promise<SetOpenAiKeyResponse> {
+    return this.request<SetOpenAiKeyResponse>('/settings/openai', {
+      method: 'PUT',
+      body: JSON.stringify({ apiKey }),
+    });
+  }
+
+  async deleteOpenAiKey(): Promise<{ message: string; hasKey: boolean }> {
+    return this.request<{ message: string; hasKey: boolean }>('/settings/openai', {
+      method: 'DELETE',
+    });
   }
 }
 

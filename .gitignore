@@ -42,4 +42,8 @@ backend/prisma/migrations/
 temp/
 tmp/
 
+# User uploads (keep directory structure but ignore files)
+backend/uploads/profile-pictures/*
+!backend/uploads/profile-pictures/.gitkeep
+
 

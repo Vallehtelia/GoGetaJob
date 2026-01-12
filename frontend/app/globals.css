@@ -68,3 +68,28 @@
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-muted-foreground;
 }
+
+/* Auto-scrolling carousel animation - seamless infinite loop */
+@keyframes scroll-seamless {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(calc(-100% / 3));
+  }
+}
+
+.animate-scroll-seamless {
+  animation: scroll-seamless 45s linear infinite;
+  will-change: transform;
+}
+
+/* Pause animation when hovering over the container */
+.animate-scroll-seamless:hover {
+  animation-play-state: paused;
+}
+
+/* Pause animation when hovering over any card inside */
+.animate-scroll-seamless:has(.group:hover) {
+  animation-play-state: paused;
+}

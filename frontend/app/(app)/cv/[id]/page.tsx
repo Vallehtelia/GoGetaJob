@@ -502,28 +502,72 @@ function CVPreview({ cv, profile }: { cv: CvDocument; profile: UserProfile }) {
     ? `${profile.firstName} ${profile.lastName}`
     : profile.email;
 
+  const apiUrl = process.env.NEXT_PUBLIC_GGJ_API_URL || 'http://localhost:3000';
+  const imageUrl = profile.profilePictureUrl ? `${apiUrl}${profile.profilePictureUrl}` : null;
+  
+  // Debug logging
+  console.log('CV Preview Debug:', {
+    hasProfilePictureUrl: !!profile.profilePictureUrl,
+    profilePictureUrl: profile.profilePictureUrl,
+    apiUrl,
+    fullImageUrl: imageUrl,
+    profile: profile
+  });
+
   return (
     <Card className="p-8 bg-white shadow-lg">
       <div className="space-y-6">
         {/* Header */}
         <div className="border-b-2 border-navy-700 pb-4">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">{fullName}</h1>
-          {profile.headline && (
-            <p className="text-lg text-gray-800 mb-2 font-medium">{profile.headline}</p>
-          )}
-          <div className="text-sm text-gray-900 space-y-1">
-            {profile.location && <p>{profile.location}</p>}
-            {profile.phone && <p>{profile.phone}</p>}
-            <p>{profile.email}</p>
-            {profile.websiteUrl && (
-              <p className="text-blue-700 hover:text-blue-800 font-semibold">{profile.websiteUrl}</p>
+          <div className="flex items-start gap-6">
+            {/* Profile Picture */}
+            {imageUrl && (
+              <div className="flex-shrink-0" style={{ width: '96px', height: '96px' }}>
+                <img
+                  src={imageUrl}
+                  alt={fullName}
+                  style={{
+                    width: '96px',
+                    height: '96px',
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                    border: '2px solid #1e3a5f',
+                    display: 'block'
+                  }}
+                  onError={(e) => {
+                    console.error('❌ Image failed to load!');
+                    console.error('URL:', e.currentTarget.src);
+                    console.error('Profile picture path:', profile.profilePictureUrl);
+                    console.error('Check: 1) Was picture uploaded? 2) Is backend serving /uploads? 3) CORS?');
+                  }}
+                  onLoad={() => {
+                    console.log('✅ Profile picture loaded successfully:', imageUrl);
+                  }}
+                />
+              </div>
             )}
+
+            {/* Text Content */}
+            <div className="flex-1">
+              <h1 className="text-3xl font-bold text-gray-800 mb-2">{fullName}</h1>
+              {profile.headline && (
+                <p className="text-lg text-gray-800 mb-2 font-medium">{profile.headline}</p>
+              )}
+              <div className="text-sm text-gray-900 space-y-1">
+                {profile.location && <p>{profile.location}</p>}
+                {profile.phone && <p>{profile.phone}</p>}
+                <p>{profile.email}</p>
+                {profile.websiteUrl && (
+                  <p className="text-blue-700 hover:text-blue-800 font-semibold">{profile.websiteUrl}</p>
+                )}
             {profile.linkedinUrl && (
               <p className="text-blue-700 hover:text-blue-800 font-semibold">{profile.linkedinUrl}</p>
             )}
-            {profile.githubUrl && (
-              <p className="text-blue-700 hover:text-blue-800 font-semibold">{profile.githubUrl}</p>
-            )}
+                {profile.githubUrl && (
+                  <p className="text-blue-700 hover:text-blue-800 font-semibold">{profile.githubUrl}</p>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
