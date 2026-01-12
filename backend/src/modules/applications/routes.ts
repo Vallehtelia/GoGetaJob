@@ -53,13 +53,8 @@ const applicationsRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const userId = request.user.userId;
         
-        // Handle multiple status params by converting to array
-        const rawQuery = request.query as any;
-        if (rawQuery.status && !Array.isArray(rawQuery.status)) {
-          rawQuery.status = [rawQuery.status];
-        }
-        
-        const query = listApplicationsQuerySchema.parse(rawQuery);
+        // Parse query params with Zod (handles comma-separated status)
+        const query = listApplicationsQuerySchema.parse(request.query);
 
         // Build where clause
         const where: Prisma.JobApplicationWhereInput = {

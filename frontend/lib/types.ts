@@ -9,6 +9,34 @@ export interface User {
   updatedAt: string;
 }
 
+export interface UserProfile {
+  id: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  phone: string | null;
+  location: string | null;
+  headline: string | null;
+  summary: string | null;
+  linkedinUrl: string | null;
+  githubUrl: string | null;
+  websiteUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpdateProfileInput {
+  firstName?: string | null;
+  lastName?: string | null;
+  phone?: string | null;
+  location?: string | null;
+  headline?: string | null;
+  summary?: string | null;
+  linkedinUrl?: string | null;
+  githubUrl?: string | null;
+  websiteUrl?: string | null;
+}
+
 export interface JobApplication {
   id: string;
   userId: string;
@@ -73,4 +101,170 @@ export interface UpdateApplicationInput {
   appliedAt?: string | null;
   lastContactAt?: string | null;
   notes?: string | null;
+}
+
+// CV Types
+export type CvTemplate = 'CLEAN_NAVY';
+export type CvSkillLevel = 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED' | 'EXPERT';
+
+export interface CvDocument {
+  id: string;
+  userId: string;
+  title: string;
+  isDefault: boolean;
+  template: CvTemplate;
+  createdAt: string;
+  updatedAt: string;
+  workExperiences?: UserWorkExperience[];
+  educations?: UserEducation[];
+  skills?: UserSkill[];
+  projects?: UserProject[];
+}
+
+// User-level library types (master data)
+export interface UserWorkExperience {
+  id: string;
+  userId?: string;
+  company: string;
+  role: string;
+  location: string | null;
+  startDate: string;
+  endDate: string | null;
+  isCurrent: boolean;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+  // When included in a CV:
+  inclusionId?: string;
+  order?: number;
+}
+
+export interface UserEducation {
+  id: string;
+  userId?: string;
+  school: string;
+  degree: string | null;
+  field: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+  // When included in a CV:
+  inclusionId?: string;
+  order?: number;
+}
+
+export interface UserSkill {
+  id: string;
+  userId?: string;
+  name: string;
+  level: CvSkillLevel | null;
+  category: string | null;
+  createdAt: string;
+  updatedAt: string;
+  // When included in a CV:
+  inclusionId?: string;
+  order?: number;
+}
+
+export interface UserProject {
+  id: string;
+  userId?: string;
+  name: string;
+  description: string | null;
+  link: string | null;
+  tech: string[];
+  createdAt: string;
+  updatedAt: string;
+  // When included in a CV:
+  inclusionId?: string;
+  order?: number;
+}
+
+// CV Input Types
+export interface CreateCvDocumentInput {
+  title?: string;
+  template?: CvTemplate;
+}
+
+export interface UpdateCvDocumentInput {
+  title?: string;
+  template?: CvTemplate;
+  isDefault?: boolean;
+}
+
+// Library item input types (for creating/updating master library items)
+export interface CreateWorkExperienceInput {
+  company: string;
+  role: string;
+  location?: string;
+  startDate: string;
+  endDate?: string;
+  isCurrent?: boolean;
+  description?: string;
+}
+
+export interface UpdateWorkExperienceInput {
+  company?: string;
+  role?: string;
+  location?: string | null;
+  startDate?: string;
+  endDate?: string | null;
+  isCurrent?: boolean;
+  description?: string | null;
+}
+
+export interface CreateEducationInput {
+  school: string;
+  degree?: string;
+  field?: string;
+  startDate?: string;
+  endDate?: string;
+  description?: string;
+}
+
+export interface UpdateEducationInput {
+  school?: string;
+  degree?: string | null;
+  field?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  description?: string | null;
+}
+
+export interface CreateSkillInput {
+  name: string;
+  level?: CvSkillLevel;
+  category?: string;
+}
+
+export interface UpdateSkillInput {
+  name?: string;
+  level?: CvSkillLevel | null;
+  category?: string | null;
+}
+
+export interface CreateProjectInput {
+  name: string;
+  description?: string;
+  link?: string;
+  tech?: string[];
+}
+
+export interface UpdateProjectInput {
+  name?: string;
+  description?: string | null;
+  link?: string | null;
+  tech?: string[];
+}
+
+// CV Inclusion types (for adding library items to a CV)
+export interface AddInclusionInput {
+  itemId: string;
+  order?: number;
+}
+
+export interface UpdateInclusionOrderInput {
+  order: number;
 }

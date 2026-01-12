@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
   LayoutDashboard, 
-  Briefcase, 
+  Briefcase,
+  FileText,
   Settings, 
   ChevronLeft, 
   ChevronRight 
@@ -19,6 +20,7 @@ interface SidebarProps {
 const navItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Applications", href: "/applications", icon: Briefcase },
+  { name: "CV", href: "/cv", icon: FileText },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 

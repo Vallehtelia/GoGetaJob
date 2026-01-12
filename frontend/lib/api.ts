@@ -15,6 +15,24 @@ import type {
   CreateApplicationInput,
   UpdateApplicationInput,
   User,
+  UserProfile,
+  UpdateProfileInput,
+  CvDocument,
+  CreateCvDocumentInput,
+  UpdateCvDocumentInput,
+  UserWorkExperience,
+  UserEducation,
+  UserSkill,
+  UserProject,
+  CreateWorkExperienceInput,
+  UpdateWorkExperienceInput,
+  CreateEducationInput,
+  UpdateEducationInput,
+  CreateSkillInput,
+  UpdateSkillInput,
+  CreateProjectInput,
+  UpdateProjectInput,
+  AddInclusionInput,
 } from './types';
 
 // Get API base URL from env or fallback to localhost
@@ -27,7 +45,7 @@ interface RequestOptions extends RequestInit {
 class ApiClient {
   private baseUrl: string;
   private isRefreshing = false;
-  private refreshPromise: Promise<string> | null = null;
+  private refreshPromise: Promise<string | null> | null = null;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
@@ -43,10 +61,14 @@ class ApiClient {
     const { requiresAuth = true, ...fetchOptions } = options;
 
     // Prepare headers
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-      ...fetchOptions.headers,
+    const headers: Record<string, string> = {
+      ...(fetchOptions.headers as Record<string, string>),
     };
+
+    // Only set Content-Type for requests with body
+    if (fetchOptions.method !== 'GET' && fetchOptions.method !== 'DELETE') {
+      headers['Content-Type'] = 'application/json';
+    }
 
     // Attach access token if required
     if (requiresAuth) {
@@ -196,6 +218,29 @@ class ApiClient {
   }
 
   // ============================================
+  // Profile endpoints
+  // ============================================
+
+  async getProfile(): Promise<UserProfile> {
+    console.log('API: Fetching user profile');
+    const response = await this.request<{ profile: UserProfile }>('/profile', {
+      method: 'GET',
+    });
+    console.log('API: Received profile data:', response.profile);
+    return response.profile;
+  }
+
+  async updateProfile(data: UpdateProfileInput): Promise<UserProfile> {
+    console.log('API: Updating profile with data:', data);
+    const response = await this.request<{ profile: UserProfile }>('/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+    console.log('API: Profile updated:', response.profile);
+    return response.profile;
+  }
+
+  // ============================================
   // Job Applications endpoints
   // ============================================
 
@@ -281,6 +326,278 @@ class ApiClient {
 
     // DELETE returns 204 No Content, so no body to parse
     return;
+  }
+
+  // ============================================
+  // Experience Library endpoints (user-level master data)
+  // ============================================
+
+  // Work Experience Library
+  async listWorkExperiences(): Promise<UserWorkExperience[]> {
+    const response = await this.request<{ data: UserWorkExperience[] }>('/profile/library/work', {
+      method: 'GET',
+    });
+    return response.data;
+  }
+
+  async createWorkExperience(data: CreateWorkExperienceInput): Promise<UserWorkExperience> {
+    const response = await this.request<{ data: UserWorkExperience; message: string }>(
+      '/profile/library/work',
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
+    return response.data;
+  }
+
+  async updateWorkExperience(
+    id: string,
+    data: UpdateWorkExperienceInput
+  ): Promise<UserWorkExperience> {
+    const response = await this.request<{ data: UserWorkExperience; message: string }>(
+      `/profile/library/work/${id}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }
+    );
+    return response.data;
+  }
+
+  async deleteWorkExperience(id: string): Promise<void> {
+    await this.request<{ message: string }>(`/profile/library/work/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Education Library
+  async listEducations(): Promise<UserEducation[]> {
+    const response = await this.request<{ data: UserEducation[] }>('/profile/library/education', {
+      method: 'GET',
+    });
+    return response.data;
+  }
+
+  async createEducation(data: CreateEducationInput): Promise<UserEducation> {
+    const response = await this.request<{ data: UserEducation; message: string }>(
+      '/profile/library/education',
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
+    return response.data;
+  }
+
+  async updateEducation(id: string, data: UpdateEducationInput): Promise<UserEducation> {
+    const response = await this.request<{ data: UserEducation; message: string }>(
+      `/profile/library/education/${id}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }
+    );
+    return response.data;
+  }
+
+  async deleteEducation(id: string): Promise<void> {
+    await this.request<{ message: string }>(`/profile/library/education/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Skills Library
+  async listSkills(): Promise<UserSkill[]> {
+    const response = await this.request<{ data: UserSkill[] }>('/profile/library/skills', {
+      method: 'GET',
+    });
+    return response.data;
+  }
+
+  async createSkill(data: CreateSkillInput): Promise<UserSkill> {
+    const response = await this.request<{ data: UserSkill; message: string }>(
+      '/profile/library/skills',
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
+    return response.data;
+  }
+
+  async updateSkill(id: string, data: UpdateSkillInput): Promise<UserSkill> {
+    const response = await this.request<{ data: UserSkill; message: string }>(
+      `/profile/library/skills/${id}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }
+    );
+    return response.data;
+  }
+
+  async deleteSkill(id: string): Promise<void> {
+    await this.request<{ message: string }>(`/profile/library/skills/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Projects Library
+  async listProjects(): Promise<UserProject[]> {
+    const response = await this.request<{ data: UserProject[] }>('/profile/library/projects', {
+      method: 'GET',
+    });
+    return response.data;
+  }
+
+  async createProject(data: CreateProjectInput): Promise<UserProject> {
+    const response = await this.request<{ data: UserProject; message: string }>(
+      '/profile/library/projects',
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
+    return response.data;
+  }
+
+  async updateProject(id: string, data: UpdateProjectInput): Promise<UserProject> {
+    const response = await this.request<{ data: UserProject; message: string }>(
+      `/profile/library/projects/${id}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }
+    );
+    return response.data;
+  }
+
+  async deleteProject(id: string): Promise<void> {
+    await this.request<{ message: string }>(`/profile/library/projects/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ============================================
+  // CV endpoints
+  // ============================================
+
+  async listCvs(): Promise<CvDocument[]> {
+    const response = await this.request<{ data: CvDocument[] }>('/cv', {
+      method: 'GET',
+    });
+    return response.data;
+  }
+
+  async getCv(id: string): Promise<CvDocument> {
+    const response = await this.request<{ data: CvDocument }>(`/cv/${id}`, {
+      method: 'GET',
+    });
+    return response.data;
+  }
+
+  async createCv(data: CreateCvDocumentInput): Promise<CvDocument> {
+    const response = await this.request<{ data: CvDocument; message: string }>('/cv', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response.data;
+  }
+
+  async updateCv(id: string, data: UpdateCvDocumentInput): Promise<CvDocument> {
+    const response = await this.request<{ data: CvDocument; message: string }>(`/cv/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+    return response.data;
+  }
+
+  async deleteCv(id: string): Promise<void> {
+    await this.request<{ message: string }>(`/cv/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // CV Inclusions (add library items to CV)
+  async addWorkToCv(cvId: string, data: AddInclusionInput): Promise<void> {
+    await this.request<{ message: string }>(`/cv/${cvId}/work`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async removeWorkFromCv(cvId: string, itemId: string): Promise<void> {
+    await this.request<{ message: string }>(`/cv/${cvId}/work/${itemId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async updateWorkOrderInCv(cvId: string, itemId: string, order: number): Promise<void> {
+    await this.request<{ message: string }>(`/cv/${cvId}/work/${itemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ order }),
+    });
+  }
+
+  async addEducationToCv(cvId: string, data: AddInclusionInput): Promise<void> {
+    await this.request<{ message: string }>(`/cv/${cvId}/education`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async removeEducationFromCv(cvId: string, itemId: string): Promise<void> {
+    await this.request<{ message: string }>(`/cv/${cvId}/education/${itemId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async updateEducationOrderInCv(cvId: string, itemId: string, order: number): Promise<void> {
+    await this.request<{ message: string }>(`/cv/${cvId}/education/${itemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ order }),
+    });
+  }
+
+  async addSkillToCv(cvId: string, data: AddInclusionInput): Promise<void> {
+    await this.request<{ message: string }>(`/cv/${cvId}/skills`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async removeSkillFromCv(cvId: string, itemId: string): Promise<void> {
+    await this.request<{ message: string }>(`/cv/${cvId}/skills/${itemId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async updateSkillOrderInCv(cvId: string, itemId: string, order: number): Promise<void> {
+    await this.request<{ message: string }>(`/cv/${cvId}/skills/${itemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ order }),
+    });
+  }
+
+  async addProjectToCv(cvId: string, data: AddInclusionInput): Promise<void> {
+    await this.request<{ message: string }>(`/cv/${cvId}/projects`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async removeProjectFromCv(cvId: string, itemId: string): Promise<void> {
+    await this.request<{ message: string }>(`/cv/${cvId}/projects/${itemId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async updateProjectOrderInCv(cvId: string, itemId: string, order: number): Promise<void> {
+    await this.request<{ message: string }>(`/cv/${cvId}/projects/${itemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ order }),
+    });
   }
 }
 

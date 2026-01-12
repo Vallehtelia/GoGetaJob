@@ -2,17 +2,20 @@
 
 A modern, production-ready job application tracking system with a secure TypeScript backend and sleek dark-themed frontend.
 
-## 🚀 Features (Phases 0-1, 2A, 3 & 3C)
+## 🚀 Features (Phases 0-1, 2A, 2B, 3, 3C & 4A - Master Library)
 
 ### Backend
 - ✅ **Secure Authentication** - JWT access + refresh token flow with Argon2 password hashing
+- ✅ **User Profile** - Complete profile management with LinkedIn, GitHub, website links
 - ✅ **Job Applications** - Full CRUD with search, filters, and pagination
-- ✅ **Database** - PostgreSQL with Prisma ORM
+- ✅ **Experience Library** - Master library for work, education, skills, and projects
+- ✅ **CV Management** - Reusable CV builder with selection-based UI
+- ✅ **Database** - PostgreSQL with Prisma ORM (12 tables, 20+ indexes)
 - ✅ **Type Safety** - Full TypeScript implementation
 - ✅ **Security** - Rate limiting, secure headers, input validation with Zod
 - ✅ **User Isolation** - All data properly scoped to authenticated users
 - ✅ **Dockerized** - Docker Compose for easy local development
-- ✅ **Testing** - Comprehensive test suite (27 tests passing)
+- ✅ **Testing** - Comprehensive test suite (77 tests passing)
 - ✅ **Environment-Driven** - All config from `.env` with `GGJ_` prefix
 
 ### Frontend
@@ -20,12 +23,16 @@ A modern, production-ready job application tracking system with a secure TypeScr
 - ✅ **Dark Theme** - Sleek navy blue theme with pink gradient accents
 - ✅ **Responsive Design** - Mobile-first, works on all devices
 - ✅ **Collapsible Sidebar** - Smooth animations and active state highlighting
-- ✅ **Component Library** - Custom UI components (Button, Card, Badge, Modal, Toast)
+- ✅ **Component Library** - Custom UI components (Button, Card, Badge, Modal, Toast, Textarea)
 - ✅ **Full Auth Flow** - Login, Register with token management
 - ✅ **Route Protection** - Auto-redirect to login for protected pages
 - ✅ **API Integration** - Complete backend connectivity with auto token refresh
 - ✅ **Real-time CRUD** - Create, Read, Update, Delete job applications
 - ✅ **Advanced Filtering** - Search, multi-status filter, sorting, pagination
+- ✅ **Profile Settings** - Edit personal info, headline, summary, social links
+- ✅ **Experience Library** - Master library for reusable work, education, skills, projects
+- ✅ **CV Builder** - Selection-based CV editor with live preview (Template v1: Clean Navy)
+- ✅ **Smart CV Creation** - Add experiences once, reuse in multiple CVs
 - ✅ **Toast Notifications** - Success/error feedback for all actions
 
 ## 📋 Prerequisites
@@ -418,6 +425,198 @@ Authorization: Bearer <accessToken>
 ### Rate Limiting
 - Auth endpoints (`/auth/*`) are rate-limited to 5 requests per 15 minutes per IP
 - Adjust `GGJ_RATE_LIMIT_MAX` and `GGJ_RATE_LIMIT_WINDOW` in `.env` as needed
+
+---
+
+## 📚 Experience Library API
+
+All library endpoints require authentication. The library is where you store your master data (work experiences, education, skills, projects) that can be reused across multiple CVs.
+
+### Work Experience Library
+
+**List Work Experiences:**
+```http
+GET /profile/library/work
+Authorization: Bearer <accessToken>
+```
+
+**Create Work Experience:**
+```http
+POST /profile/library/work
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+
+{
+  "company": "TechCorp",
+  "role": "Senior Software Engineer",
+  "location": "San Francisco, CA",
+  "startDate": "2020-01-01",
+  "endDate": "2023-12-31",
+  "isCurrent": false,
+  "description": "Led development of cloud infrastructure"
+}
+```
+
+**Update/Delete Work Experience:**
+```http
+PATCH /profile/library/work/:id
+DELETE /profile/library/work/:id
+```
+
+**Same pattern applies to:**
+- `/profile/library/education` - School, degree, field, dates, description
+- `/profile/library/skills` - Name, level (BEGINNER|INTERMEDIATE|ADVANCED|EXPERT), category
+- `/profile/library/projects` - Name, description, link, tech array
+
+---
+
+## 📄 CV Management API
+
+All CV endpoints require authentication. CVs select which library items to include.
+
+### List CVs
+```http
+GET /cv
+Authorization: Bearer <accessToken>
+```
+
+**Response (200):**
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "title": "Software Engineer CV",
+      "isDefault": true,
+      "template": "CLEAN_NAVY",
+      "updatedAt": "2026-01-12T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+### Create CV
+```http
+POST /cv
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+
+{
+  "title": "My CV",
+  "template": "CLEAN_NAVY"
+}
+```
+
+**Response (201):**
+```json
+{
+  "message": "CV created successfully",
+  "data": {
+    "id": "uuid",
+    "userId": "uuid",
+    "title": "My CV",
+    "isDefault": false,
+    "template": "CLEAN_NAVY",
+    "createdAt": "2026-01-12T10:00:00.000Z",
+    "updatedAt": "2026-01-12T10:00:00.000Z"
+  }
+}
+```
+
+### Get CV with All Included Items
+```http
+GET /cv/:id
+Authorization: Bearer <accessToken>
+```
+
+**Response (200):**
+```json
+{
+  "data": {
+    "id": "uuid",
+    "title": "My CV",
+    "isDefault": true,
+    "template": "CLEAN_NAVY",
+    "workExperiences": [
+      {
+        "id": "work-uuid",
+        "inclusionId": "inclusion-uuid",
+        "company": "TechCorp",
+        "role": "Engineer",
+        "order": 0,
+        ...
+      }
+    ],
+    "educations": [...],
+    "skills": [...],
+    "projects": [...]
+  }
+}
+```
+Note: Items include `inclusionId` and `order` when part of a CV.
+
+### Update CV
+```http
+PATCH /cv/:id
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+
+{
+  "title": "Updated Title",
+  "isDefault": true
+}
+```
+
+### Delete CV
+```http
+DELETE /cv/:id
+Authorization: Bearer <accessToken>
+```
+
+### CV Inclusion Endpoints
+
+Add library items to a CV by selecting them:
+
+**Add Work Experience to CV:**
+```http
+POST /cv/:id/work
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+
+{
+  "itemId": "work-experience-uuid",
+  "order": 0
+}
+```
+
+**Remove from CV:**
+```http
+DELETE /cv/:id/work/:itemId
+```
+
+**Update Order in CV:**
+```http
+PATCH /cv/:id/work/:itemId
+Content-Type: application/json
+
+{
+  "order": 1
+}
+```
+
+**Same pattern for:**
+- `/cv/:id/education/:itemId?` - Add/remove/reorder education
+- `/cv/:id/skills/:itemId?` - Add/remove/reorder skills
+- `/cv/:id/projects/:itemId?` - Add/remove/reorder projects
+
+**Key Features:**
+- ✅ Add library items to CV by ID
+- ✅ Each CV has independent ordering
+- ✅ Cannot add same item twice to same CV
+- ✅ Removing from CV doesn't delete from library
+- ✅ Deleting library item removes from all CVs (cascade)
+
+---
 
 ## 🐳 Docker Commands
 

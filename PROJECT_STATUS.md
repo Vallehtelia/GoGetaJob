@@ -1,8 +1,126 @@
 # GoGetaJob (GGJ) - Project Status
 
 **Last Updated:** 2026-01-12  
-**Current Phase:** 3C (Frontend-Backend Integration) ✅ COMPLETE  
-**Previous Phases:** 0-1 (Bootstrap) ✅ | 2A (Job Applications API) ✅ | 3 (Frontend UI) ✅
+**Current Phase:** 4A (CV Core with Preview) ✅ COMPLETE  
+**Previous Phases:** 0-1 (Bootstrap) ✅ | 2A (Job Applications API) ✅ | 2B (User Profile) ✅ | 3 (Frontend UI) ✅ | 3C (Integration) ✅
+
+---
+
+## ✅ Phase 4A: CV Management with Master Library (COMPLETED)
+
+### Architecture - Master Library Approach
+- ✅ **User-Level Library** - Work, Education, Skills, Projects stored at account level (not CV-specific)
+- ✅ **Many-to-Many Relationships** - CVs select which library items to include
+- ✅ **Junction Tables** - CvWorkInclusion, CvEducationInclusion, CvSkillInclusion, CvProjectInclusion
+- ✅ **Reusability** - Add experience once, use in multiple CVs
+- ✅ **Auto-Updates** - Update library item → reflects in all CVs using it
+- ✅ **Fast CV Creation** - Select relevant items instead of re-entering data
+
+### Backend - Library Models
+- ✅ **UserWorkExperience** - Company, role, location, dates, isCurrent, description
+- ✅ **UserEducation** - School, degree, field, dates, description
+- ✅ **UserSkill** - Name, level (BEGINNER → EXPERT), category
+- ✅ **UserProject** - Name, description, link, tech array
+- ✅ **All user-scoped** with proper indexes
+
+### Backend - Library API (`/profile/library/...`)
+- ✅ **Work Experience** - GET, POST, PATCH, DELETE `/profile/library/work/:id?`
+- ✅ **Education** - GET, POST, PATCH, DELETE `/profile/library/education/:id?`
+- ✅ **Skills** - GET, POST, PATCH, DELETE `/profile/library/skills/:id?`
+- ✅ **Projects** - GET, POST, PATCH, DELETE `/profile/library/projects/:id?`
+
+### Backend - CV Document Endpoints
+- ✅ `GET /cv` - List all user's CVs
+- ✅ `POST /cv` - Create new CV document
+- ✅ `GET /cv/:id` - Get CV with all included items (via joins)
+- ✅ `PATCH /cv/:id` - Update CV title/template/isDefault
+- ✅ `DELETE /cv/:id` - Delete CV (cascade deletes inclusions)
+
+### Backend - CV Inclusion Endpoints
+- ✅ **Add to CV** - `POST /cv/:id/{work|education|skills|projects}` body: `{itemId, order?}`
+- ✅ **Remove from CV** - `DELETE /cv/:id/{section}/:itemId`
+- ✅ **Update Order** - `PATCH /cv/:id/{section}/:itemId` body: `{order}`
+- ✅ Duplicate prevention (cannot add same item twice)
+- ✅ Ownership verification (can only add own library items)
+
+### Validation & Security
+- ✅ Zod schemas for all inputs
+- ✅ Max length validation across all fields
+- ✅ Date format validation (YYYY-MM-DD)
+- ✅ URL validation for project links
+- ✅ User isolation - Cannot access other users' library or CVs
+- ✅ Cross-user protection verified
+
+### Testing
+- ✅ **21 library tests** - CRUD for work, education, skills, projects
+- ✅ **20 CV inclusion tests** - Add/remove, ordering, cascade deletion, cross-user protection
+- ✅ **9 auth tests** - Login, register, token refresh
+- ✅ **18 application tests** - Job application CRUD with filters
+- ✅ **9 profile tests** - Profile management
+- ✅ **Total: 77 tests passing** ✅
+
+### Frontend - Experience Library (Settings Page)
+- ✅ **New Tab: "Experience Library"** in Settings
+- ✅ **Four Sub-Tabs:** Work Experience, Education, Skills, Projects
+- ✅ **Library Management:**
+  - Add items to library via modal forms
+  - Edit library items (updates all CVs using them)
+  - Delete with cascade warning
+  - Grid/list display with edit/delete actions
+- ✅ **Work Form** - Date pickers, "currently working" checkbox, description
+- ✅ **Education Form** - School, degree, field, dates, description
+- ✅ **Skills Form** - Name, level dropdown, category
+- ✅ **Projects Form** - Name, description, URL, tech tags
+- ✅ **Empty States** - Helpful messages and add buttons
+- ✅ **Info Banner** - Explains the library concept
+
+### Frontend - CV List Page (`/cv`)
+- ✅ Grid view of user's CV documents
+- ✅ Create new CV with custom title
+- ✅ Default CV indicator (star icon)
+- ✅ Edit/delete actions
+- ✅ Last updated timestamp
+- ✅ Empty state with create prompt
+- ✅ Responsive grid layout
+
+### Frontend - CV Editor (`/cv/[id]`)
+- ✅ **Selection-Based UI** - Check/uncheck library items to include
+- ✅ **Split View Layout** - Selection panel (left) + Live Preview (right)
+- ✅ **Tabbed Selection** - Work, Education, Skills, Projects tabs with count badges
+- ✅ **Item Cards:**
+  - Checkbox to toggle inclusion
+  - Visual highlight when included
+  - Check icon for included items
+  - Summary info (role, company, dates, etc.)
+- ✅ **Empty States** - Direct link to Settings to add library items
+- ✅ **Info Banner** - Explains selection workflow
+- ✅ **Set as Default** - Toggle CV as default with star button
+
+### Frontend - CV Preview (Template v1: Clean Navy)
+- ✅ **Header Section** - Name (from profile), headline, contact info, social links
+- ✅ **Summary Section** - Professional summary from profile
+- ✅ **Work Experience Section** - Role, company, location, dates, description
+- ✅ **Projects Section** - Name, link, description, technologies
+- ✅ **Skills Section** - Name + level badges, wrapped grid layout
+- ✅ **Education Section** - School, degree, field, dates, description
+- ✅ **Clean Typography** - Navy blue headers, pink accent borders, readable fonts
+- ✅ **Professional Layout** - Section spacing, hierarchy, printable design
+- ✅ **Live Updates** - Preview updates as items are selected/deselected
+
+### Navigation & UX
+- ✅ CV navigation item in sidebar (FileText icon)
+- ✅ Back button to return to CV list
+- ✅ Loading states and skeletons
+- ✅ Toast notifications for all actions
+- ✅ Responsive design (mobile-friendly)
+- ✅ Smooth transitions and animations
+- ✅ Click-to-toggle for easy item selection
+
+### Documentation
+- ✅ README.md updated with library + CV endpoints
+- ✅ PROJECT_STATUS.md updated with Phase 4A completion
+- ✅ PHASE_4A_COMPLETE.md with full implementation details
+- ✅ Inline code comments
 
 ---
 
@@ -377,38 +495,51 @@
 ## 📊 Metrics
 
 **Backend:**
-- Lines of Code: ~3,500
-- Test Coverage: 27 tests passing (auth + job applications)
-- API Endpoints: 10 (5 auth + 5 applications + 1 health)
-- Database Tables: 3 (users, refresh_tokens, job_applications)
-- Database Indexes: 7 (optimized for common queries)
+- Lines of Code: ~6,500
+- Test Coverage: **77 tests passing** ✅ (9 auth + 18 applications + 9 profile + 21 library + 20 CV inclusions)
+- API Endpoints: 40+ (5 auth + 2 profile + 5 applications + 12 library + 17 CV + 1 health)
+- Database Tables: 12 (users, tokens, applications, cv_documents, 4 library tables, 4 junction tables)
+- Database Indexes: 20+ (optimized for queries and joins)
 
 **Frontend:**
-- Lines of Code: ~3,500
-- Pages: 7 (login, register, dashboard, applications, applications/new, applications/[id], settings)
-- Components: 15+ reusable UI components (Toast, ConfirmDialog, Modal, Buttons, Cards, Badges, etc.)
+- Lines of Code: ~7,500
+- Pages: 10 (login, register, dashboard, applications, applications/new, applications/[id], settings with library tab, cv, cv/[id])
+- Components: 20+ reusable UI components (Toast, ConfirmDialog, Modal, Button, Card, Badge, Input, Textarea, etc.)
 - Routes: 2 layouts (auth, app) with route protection
 - API Integration: Fully connected to backend with token refresh
+- CV Features: Master library + selection UI + live preview
 
 ---
 
 ## 🎯 Current Focus
 
-**Phases 0-1, 2A, 3, and 3C are COMPLETE.** We now have a **fully functional end-to-end job application tracker**!
+**Phases 0-1, 2A, 2B, 3, 3C, and 4A are COMPLETE!** We now have a **fully functional end-to-end job application tracker with intelligent CV management**!
 
 Users can:
 - ✅ Register and login with JWT authentication
+- ✅ Manage personal profile (name, headline, summary, social links)
+- ✅ **Build master library** of work experiences, education, skills, and projects (once)
+- ✅ **Create multiple CVs** by selecting relevant library items (fast!)
+- ✅ **Update library items** → automatically reflects in all CVs using them
 - ✅ Create, view, edit, and delete job applications
 - ✅ Search, filter, sort, and paginate applications
 - ✅ Track application status (DRAFT → APPLIED → INTERVIEW → OFFER/REJECTED)
-- ✅ Add notes and track contact dates
+- ✅ Preview CVs with "Clean Navy" template in real-time
+- ✅ Set default CV for applications
+
+**Key Innovation - Master Library:**
+- 📚 Add experiences once in Settings → Experience Library
+- 🎯 Create tailored CVs by selecting relevant items (seconds, not minutes)
+- ♻️ Update experience in one place → updates everywhere automatically
+- 🚀 Create role-specific CVs (Software Engineer, Data Scientist, etc.) effortlessly
 
 **Recommended Next Steps:**
-1. **Option A:** Deploy to production - Set up CI/CD, Docker Compose, Nginx reverse proxy
-2. **Option B:** User profile enhancements - Add profile fields, password reset, email verification (Phase 2B)
-3. **Option C:** Advanced features - Dashboard analytics, application reminders, CV templates (Phase 4)
+1. **Phase 4B:** CV Snapshots - Link CVs to applications, create immutable snapshots when applying
+2. **Phase 4C:** PDF Export - Add PDF generation for downloadable CVs (puppeteer/react-pdf)
+3. **Phase 5:** Dashboard Analytics - Stats, charts, application funnel visualization
+4. **Production:** Deploy to production - CI/CD, Docker Compose, Nginx reverse proxy
 
-**Suggested:** Go with **Option A (Production Deployment)** to make the app accessible to real users!
+**Suggested:** Go with **Phase 4B (CV Snapshots)** to track which CV was used for each application!
 
 ---
 

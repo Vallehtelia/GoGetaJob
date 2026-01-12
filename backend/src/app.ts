@@ -10,6 +10,9 @@ import securityPlugin from './plugins/security.js';
 import healthRoutes from './modules/health/routes.js';
 import authRoutes from './modules/auth/routes.js';
 import applicationsRoutes from './modules/applications/routes.js';
+import profileRoutes from './modules/profile/routes.js';
+import cvRoutes from './modules/cv/routes.js';
+import libraryRoutes from './modules/library/routes.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const fastify = Fastify({
@@ -36,21 +39,28 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(healthRoutes);
   await fastify.register(authRoutes);
   await fastify.register(applicationsRoutes);
+  await fastify.register(profileRoutes);
+  await fastify.register(libraryRoutes);
+  await fastify.register(cvRoutes);
 
   // Global error handler
-  fastify.setErrorHandler((error, request, reply) => {
+  fastify.setErrorHandler((error, _request, reply) => {
     fastify.log.error(error);
 
+    // Type guard for Error objects
+    const isError = error instanceof Error;
+    const statusCode = (error as any).statusCode;
+    
     // Handle Fastify HTTP errors
-    if (error.statusCode) {
-      return reply.code(error.statusCode).send({
-        error: error.name,
-        message: error.message,
+    if (statusCode) {
+      return reply.code(statusCode).send({
+        error: isError ? error.name : 'Error',
+        message: isError ? error.message : 'An error occurred',
       });
     }
 
     // Handle Prisma errors
-    if (error.constructor.name.includes('Prisma')) {
+    if (isError && error.constructor.name.includes('Prisma')) {
       return reply.code(500).send({
         error: 'Database Error',
         message: config.app.isDevelopment ? error.message : 'An error occurred with the database',
@@ -60,7 +70,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     // Generic error
     return reply.code(500).send({
       error: 'Internal Server Error',
-      message: config.app.isDevelopment ? error.message : 'An unexpected error occurred',
+      message: config.app.isDevelopment && isError ? error.message : 'An unexpected error occurred',
     });
   });
 

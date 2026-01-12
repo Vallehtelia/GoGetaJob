@@ -147,8 +147,8 @@ describe('Job Applications', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
-      expect(body.application.id).toBe(applicationId);
-      expect(body.application.company).toBe('TechCorp');
+      expect(body.id).toBe(applicationId);
+      expect(body.company).toBe('TechCorp');
     });
 
     it('should return 404 for non-existent application', async () => {
@@ -263,13 +263,13 @@ describe('Job Applications', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
-      expect(body.items).toBeInstanceOf(Array);
-      expect(body.items.length).toBeGreaterThan(0);
-      expect(body.total).toBeGreaterThanOrEqual(body.items.length);
-      expect(body.page).toBe(1);
-      expect(body.pageSize).toBe(20);
+      expect(body.data).toBeInstanceOf(Array);
+      expect(body.data.length).toBeGreaterThan(0);
+      expect(body.pagination.totalCount).toBeGreaterThanOrEqual(body.data.length);
+      expect(body.pagination.page).toBe(1);
+      expect(body.pagination.pageSize).toBe(20);
       // Verify user isolation - should not see User B's applications
-      expect(body.items.every((app: any) => app.userId === userAId)).toBe(true);
+      expect(body.data.every((app: any) => app.userId === userAId)).toBe(true);
     });
 
     it('should filter by status', async () => {
@@ -283,7 +283,7 @@ describe('Job Applications', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
-      expect(body.items.every((app: any) => app.status === 'INTERVIEW')).toBe(true);
+      expect(body.data.every((app: any) => app.status === 'INTERVIEW')).toBe(true);
     });
 
     it('should filter by multiple statuses', async () => {
@@ -298,7 +298,7 @@ describe('Job Applications', () => {
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
       expect(
-        body.items.every((app: any) => app.status === 'APPLIED' || app.status === 'INTERVIEW')
+        body.data.every((app: any) => app.status === 'APPLIED' || app.status === 'INTERVIEW')
       ).toBe(true);
     });
 
@@ -313,9 +313,9 @@ describe('Job Applications', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
-      expect(body.items.length).toBeGreaterThan(0);
+      expect(body.data.length).toBeGreaterThan(0);
       expect(
-        body.items.every(
+        body.data.every(
           (app: any) =>
             app.company.toLowerCase().includes('tech') ||
             app.position.toLowerCase().includes('tech')
@@ -334,10 +334,10 @@ describe('Job Applications', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
-      expect(body.items.length).toBeLessThanOrEqual(2);
-      expect(body.page).toBe(1);
-      expect(body.pageSize).toBe(2);
-      expect(body.totalPages).toBeGreaterThan(0);
+      expect(body.data.length).toBeLessThanOrEqual(2);
+      expect(body.pagination.page).toBe(1);
+      expect(body.pagination.pageSize).toBe(2);
+      expect(body.pagination.totalPages).toBeGreaterThan(0);
     });
 
     it('should support sorting', async () => {
@@ -352,8 +352,8 @@ describe('Job Applications', () => {
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
       // Verify items are sorted in ascending order
-      if (body.items.length > 1) {
-        const dates = body.items.map((app: any) => new Date(app.createdAt).getTime());
+      if (body.data.length > 1) {
+        const dates = body.data.map((app: any) => new Date(app.createdAt).getTime());
         const sortedDates = [...dates].sort((a, b) => a - b);
         expect(dates).toEqual(sortedDates);
       }
@@ -370,7 +370,7 @@ describe('Job Applications', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
-      expect(body.pageSize).toBe(100); // Should be capped at 100
+      expect(body.pagination.pageSize).toBe(100); // Should be capped at 100
     });
   });
 

@@ -13,11 +13,28 @@ model User {
   id           String   @id @default(uuid())
   email        String   @unique
   passwordHash String   @map("password_hash")
+  
+  // Profile fields
+  firstName    String?  @db.VarChar(100) @map("first_name")
+  lastName     String?  @db.VarChar(100) @map("last_name")
+  phone        String?  @db.VarChar(50)
+  location     String?  @db.VarChar(120)
+  headline     String?  @db.VarChar(160)
+  summary      String?  @db.Text
+  linkedinUrl  String?  @db.VarChar(300) @map("linkedin_url")
+  githubUrl    String?  @db.VarChar(300) @map("github_url")
+  websiteUrl   String?  @db.VarChar(300) @map("website_url")
+  
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  refreshTokens   RefreshToken[]
-  jobApplications JobApplication[]
+  refreshTokens     RefreshToken[]
+  jobApplications   JobApplication[]
+  cvDocuments       CvDocument[]
+  workExperiences   UserWorkExperience[]
+  educations        UserEducation[]
+  skills            UserSkill[]
+  projects          UserProject[]
 
   @@map("users")
 }
@@ -64,6 +81,175 @@ model JobApplication {
   @@index([userId, createdAt])
   @@index([userId, company])
   @@map("job_applications")
+}
+
+// CV Template enum
+enum CvTemplate {
+  CLEAN_NAVY
+}
+
+// CV Skill level enum
+enum CvSkillLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+}
+
+// CV Document (main CV)
+model CvDocument {
+  id        String     @id @default(uuid())
+  userId    String     @map("user_id")
+  title     String     @default("Main CV") @db.VarChar(120)
+  isDefault Boolean    @default(false) @map("is_default")
+  template  CvTemplate @default(CLEAN_NAVY)
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workInclusions      CvWorkInclusion[]
+  educationInclusions CvEducationInclusion[]
+  skillInclusions     CvSkillInclusion[]
+  projectInclusions   CvProjectInclusion[]
+
+  @@index([userId, isDefault])
+  @@map("cv_documents")
+}
+
+// User Work Experience (Master Library)
+model UserWorkExperience {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  company     String    @db.VarChar(200)
+  role        String    @db.VarChar(200)
+  location    String?   @db.VarChar(120)
+  startDate   DateTime  @map("start_date") @db.Date
+  endDate     DateTime? @map("end_date") @db.Date
+  isCurrent   Boolean   @default(false) @map("is_current")
+  description String?   @db.Text
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cvInclusions CvWorkInclusion[]
+
+  @@index([userId, startDate])
+  @@map("user_work_experiences")
+}
+
+// Junction: Which work experiences are in which CV
+model CvWorkInclusion {
+  id                String @id @default(uuid())
+  cvId              String @map("cv_id")
+  workExperienceId  String @map("work_experience_id")
+  order             Int    @default(0)
+
+  cv             CvDocument         @relation(fields: [cvId], references: [id], onDelete: Cascade)
+  workExperience UserWorkExperience @relation(fields: [workExperienceId], references: [id], onDelete: Cascade)
+
+  @@unique([cvId, workExperienceId])
+  @@index([cvId, order])
+  @@map("cv_work_inclusions")
+}
+
+// User Education (Master Library)
+model UserEducation {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  school      String    @db.VarChar(200)
+  degree      String?   @db.VarChar(200)
+  field       String?   @db.VarChar(200)
+  startDate   DateTime? @map("start_date") @db.Date
+  endDate     DateTime? @map("end_date") @db.Date
+  description String?   @db.Text
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cvInclusions CvEducationInclusion[]
+
+  @@index([userId, startDate])
+  @@map("user_educations")
+}
+
+// Junction: Which educations are in which CV
+model CvEducationInclusion {
+  id          String @id @default(uuid())
+  cvId        String @map("cv_id")
+  educationId String @map("education_id")
+  order       Int    @default(0)
+
+  cv        CvDocument    @relation(fields: [cvId], references: [id], onDelete: Cascade)
+  education UserEducation @relation(fields: [educationId], references: [id], onDelete: Cascade)
+
+  @@unique([cvId, educationId])
+  @@index([cvId, order])
+  @@map("cv_education_inclusions")
+}
+
+// User Skill (Master Library)
+model UserSkill {
+  id        String        @id @default(uuid())
+  userId    String        @map("user_id")
+  name      String        @db.VarChar(80)
+  level     CvSkillLevel?
+  category  String?       @db.VarChar(80)
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cvInclusions CvSkillInclusion[]
+
+  @@index([userId, name])
+  @@map("user_skills")
+}
+
+// Junction: Which skills are in which CV
+model CvSkillInclusion {
+  id      String @id @default(uuid())
+  cvId    String @map("cv_id")
+  skillId String @map("skill_id")
+  order   Int    @default(0)
+
+  cv    CvDocument @relation(fields: [cvId], references: [id], onDelete: Cascade)
+  skill UserSkill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([cvId, skillId])
+  @@index([cvId, order])
+  @@map("cv_skill_inclusions")
+}
+
+// User Project (Master Library)
+model UserProject {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  name        String   @db.VarChar(120)
+  description String?  @db.Text
+  link        String?  @db.VarChar(300)
+  tech        String[] @default([])
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cvInclusions CvProjectInclusion[]
+
+  @@index([userId, name])
+  @@map("user_projects")
+}
+
+// Junction: Which projects are in which CV
+model CvProjectInclusion {
+  id        String @id @default(uuid())
+  cvId      String @map("cv_id")
+  projectId String @map("project_id")
+  order     Int    @default(0)
+
+  cv      CvDocument  @relation(fields: [cvId], references: [id], onDelete: Cascade)
+  project UserProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([cvId, projectId])
+  @@index([cvId, order])
+  @@map("cv_project_inclusions")
 }
 
 
