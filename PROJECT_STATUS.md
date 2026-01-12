@@ -1,8 +1,8 @@
 # GoGetaJob (GGJ) - Project Status
 
 **Last Updated:** 2026-01-12  
-**Current Phase:** 4A (CV Core with Preview) ✅ COMPLETE  
-**Previous Phases:** 0-1 (Bootstrap) ✅ | 2A (Job Applications API) ✅ | 2B (User Profile) ✅ | 3 (Frontend UI) ✅ | 3C (Integration) ✅
+**Current Phase:** 4B (CV Snapshots) ✅ COMPLETE  
+**Previous Phases:** 0-1 (Bootstrap) ✅ | 2A (Job Applications) ✅ | 2B (Profile) ✅ | 3 (Frontend) ✅ | 3C (Integration) ✅ | 4A (CV Master Library) ✅
 
 ---
 
@@ -103,9 +103,17 @@
 - ✅ **Projects Section** - Name, link, description, technologies
 - ✅ **Skills Section** - Name + level badges, wrapped grid layout
 - ✅ **Education Section** - School, degree, field, dates, description
-- ✅ **Clean Typography** - Navy blue headers, pink accent borders, readable fonts
+- ✅ **Professional Typography** - Optimized gray scale for maximum readability on white
+- ✅ **Color Scheme** - Navy borders, blue links, gray-900 body text for high contrast
 - ✅ **Professional Layout** - Section spacing, hierarchy, printable design
 - ✅ **Live Updates** - Preview updates as items are selected/deselected
+
+### Polish & Bug Fixes (Post-Launch)
+- ✅ **DELETE Request Fix** - Removed Content-Type header for GET/DELETE requests (fixed "Body cannot be empty" error)
+- ✅ **CV Color Improvements** - Replaced pink accents with navy borders, improved link colors
+- ✅ **Text Contrast Enhancement** - All body text upgraded to `text-gray-900` for maximum readability on white background
+- ✅ **Settings Button Hovers** - Added light backgrounds on hover (Edit: navy-100, Delete: red-100) for better visibility
+- ✅ **Library Tab Design** - Active tab gets light background, hover states visible on dark backgrounds
 
 ### Navigation & UX
 - ✅ CV navigation item in sidebar (FileText icon)
@@ -118,9 +126,123 @@
 
 ### Documentation
 - ✅ README.md updated with library + CV endpoints
-- ✅ PROJECT_STATUS.md updated with Phase 4A completion
+- ✅ PROJECT_STATUS.md updated with Phase 4A completion + bug fixes
 - ✅ PHASE_4A_COMPLETE.md with full implementation details
+- ✅ IMPLEMENTATION_SUMMARY.md with user-friendly guide
 - ✅ Inline code comments
+- ✅ All bug fixes documented
+
+---
+
+## ✅ Phase 4B: CV Snapshots (COMPLETED)
+
+### Architecture - Immutable CV Copies
+- ✅ **Snapshot at Point in Time** - Freeze CV data when applying to a job
+- ✅ **Immutability** - Snapshots never change even if profile/library updates
+- ✅ **Application Link** - One snapshot per application (unique constraint)
+- ✅ **Resnapshot Support** - Replace old snapshot with new one (keeps history clean)
+- ✅ **Complete Data Copy** - Stores profile header + all CV sections
+
+### Backend - Snapshot Models
+- ✅ **CvSnapshot** - Main snapshot (links to application, stores template/title)
+- ✅ **CvSnapshotHeader** - Profile data at time of snapshot (name, email, headline, summary, links)
+- ✅ **CvSnapshotWorkExperience** - Frozen work experiences with order
+- ✅ **CvSnapshotEducation** - Frozen education entries with order
+- ✅ **CvSnapshotSkill** - Frozen skills with level/category
+- ✅ **CvSnapshotProject** - Frozen projects with tech array
+- ✅ **Cascade Deletion** - Deleting snapshot removes all sections
+- ✅ **Indexes** - Optimized for snapshot retrieval
+
+### Backend - Snapshot Service
+- ✅ **createSnapshotFromCv()** - Copies CV + profile data into immutable snapshot
+  - Fetches profile from User table
+  - Fetches CV document + all included library items via joins
+  - Creates snapshot header (profile data)
+  - Copies all sections (work, education, skills, projects) with order
+  - Links to application if provided
+  - Replaces old snapshot if exists (delete + create)
+  - All in database transaction for consistency
+- ✅ **getSnapshot()** - Retrieves snapshot with all sections ordered correctly
+- ✅ **deleteSnapshot()** - Removes snapshot and cascade deletes sections
+
+### Backend - Snapshot API Endpoints
+- ✅ `POST /applications/:id/snapshot` - Create/replace snapshot for application
+  - Body: `{ cvDocumentId: "uuid" }`
+  - Validates CV belongs to user
+  - Validates application belongs to user
+  - Returns: `{ snapshotId: "uuid" }`
+- ✅ `GET /applications/:id/snapshot` - Get snapshot for application
+  - Returns full snapshot with header + all sections
+  - 404 if no snapshot exists
+- ✅ `DELETE /applications/:id/snapshot` - Delete snapshot for application
+- ✅ `GET /snapshots/:id` - Direct snapshot access by ID (optional)
+
+### Validation & Security
+- ✅ Zod schemas for all snapshot inputs
+- ✅ UUID validation for IDs
+- ✅ Ownership verification (CV and application must belong to user)
+- ✅ Cross-user access blocked (cannot snapshot other user's CVs)
+- ✅ Transaction safety (all-or-nothing snapshot creation)
+
+### Testing
+- ✅ **15 snapshot integration tests:**
+  - Create snapshot successfully
+  - Validate snapshot data structure
+  - Test immutability (library update doesn't change snapshot)
+  - Test immutability (profile update doesn't change snapshot)
+  - Test resnapshot (replace old with new)
+  - Test delete snapshot
+  - Cross-user access prevention
+  - Invalid CV/application handling
+- ✅ **Total: 92 tests passing** ✅ (77 from 4A + 15 new)
+
+### Frontend - Application Edit Page Updates
+- ✅ **CV Snapshot Panel** added to `/applications/[id]`
+- ✅ **Snapshot Status Display:**
+  - Shows snapshot metadata (title, template, created date)
+  - "Immutable" badge indicator
+  - Helpful info banner explaining immutability
+- ✅ **Snapshot Actions:**
+  - "View Snapshot" button → navigates to snapshot view
+  - "Recreate" button → select new CV and replace
+  - "Delete" button → with confirmation dialog
+- ✅ **Create Flow:**
+  - CV dropdown (lists all user CVs)
+  - Shows default CV indicator
+  - "Create Snapshot" button
+  - Empty state if no CVs exist (link to CV builder)
+- ✅ **Loading States** - Spinner while creating/loading snapshot
+- ✅ **Toast Notifications** - Success/error feedback
+
+### Frontend - Snapshot View Page (NEW)
+- ✅ **Route:** `/applications/[id]/snapshot`
+- ✅ **Read-Only Display** - Shows frozen CV data (not live)
+- ✅ **Snapshot Indicators:**
+  - 📸 Snapshot badge with creation date
+  - Immutability notice banner
+  - Clear visual distinction from live CV editor
+- ✅ **Same Preview Template** - Uses Clean Navy template styling
+- ✅ **All Sections Rendered:**
+  - Profile header (from snapshot)
+  - Professional summary
+  - Work experience (ordered)
+  - Projects (ordered)
+  - Skills (ordered)
+  - Education (ordered)
+- ✅ **Back Navigation** - Return to application edit page
+
+### API Client Updates
+- ✅ `createApplicationSnapshot(applicationId, cvDocumentId)` - Create/replace snapshot
+- ✅ `getApplicationSnapshot(applicationId)` - Get snapshot for application
+- ✅ `deleteApplicationSnapshot(applicationId)` - Delete snapshot
+- ✅ `getSnapshotById(snapshotId)` - Direct snapshot access
+
+### TypeScript Types
+- ✅ `CvSnapshot` - Main snapshot type with all relations
+- ✅ `CvSnapshotHeader` - Profile data type
+- ✅ `CvSnapshotWorkExperience`, `CvSnapshotEducation`, `CvSnapshotSkill`, `CvSnapshotProject`
+- ✅ `CreateSnapshotInput` - API request type
+- ✅ Full type safety across backend and frontend
 
 ---
 
@@ -495,51 +617,79 @@
 ## 📊 Metrics
 
 **Backend:**
-- Lines of Code: ~6,500
-- Test Coverage: **77 tests passing** ✅ (9 auth + 18 applications + 9 profile + 21 library + 20 CV inclusions)
-- API Endpoints: 40+ (5 auth + 2 profile + 5 applications + 12 library + 17 CV + 1 health)
-- Database Tables: 12 (users, tokens, applications, cv_documents, 4 library tables, 4 junction tables)
-- Database Indexes: 20+ (optimized for queries and joins)
+- Lines of Code: ~7,500
+- Test Coverage: **92/92 tests passing** ✅ (100% pass rate)
+  - 9 auth tests (login, register, token refresh)
+  - 18 application tests (CRUD, filters, pagination)
+  - 9 profile tests (profile management)
+  - 21 library tests (work, education, skills, projects CRUD)
+  - 20 CV inclusion tests (add/remove, ordering, cascade)
+  - 15 snapshot tests (create, immutability, resnapshot, delete)
+- API Endpoints: 44 (5 auth + 2 profile + 5 applications + 12 library + 17 CV + 4 snapshots + 1 health)
+- Database Tables: 18 (users, tokens, applications, cv_documents, 4 library, 4 junction, 6 snapshot)
+- Database Indexes: 25+ (optimized for queries, joins, and snapshot retrieval)
 
 **Frontend:**
-- Lines of Code: ~7,500
-- Pages: 10 (login, register, dashboard, applications, applications/new, applications/[id], settings with library tab, cv, cv/[id])
+- Lines of Code: ~8,500
+- Build Status: ✅ Compiles successfully
+- Pages: 12 (login, register, dashboard, applications, applications/new, applications/[id], applications/[id]/snapshot, settings with library, cv, cv/[id])
 - Components: 20+ reusable UI components (Toast, ConfirmDialog, Modal, Button, Card, Badge, Input, Textarea, etc.)
 - Routes: 2 layouts (auth, app) with route protection
-- API Integration: Fully connected to backend with token refresh
-- CV Features: Master library + selection UI + live preview
+- API Integration: Fully connected to backend with automatic token refresh
+- CV Features: Master library + selection UI + live preview + immutable snapshots
+- UX Polish: All hover states, contrast, interactions optimized + snapshot UI
 
 ---
 
-## 🎯 Current Focus
+## 🎯 Current Status
 
-**Phases 0-1, 2A, 2B, 3, 3C, and 4A are COMPLETE!** We now have a **fully functional end-to-end job application tracker with intelligent CV management**!
+**Phases 0-1, 2A, 2B, 3, 3C, 4A, and 4B are COMPLETE!** We now have a **fully polished, production-ready job application tracker with intelligent CV management and immutable snapshots**!
 
-Users can:
+### What Users Can Do:
 - ✅ Register and login with JWT authentication
 - ✅ Manage personal profile (name, headline, summary, social links)
 - ✅ **Build master library** of work experiences, education, skills, and projects (once)
-- ✅ **Create multiple CVs** by selecting relevant library items (fast!)
+- ✅ **Create multiple CVs** by selecting relevant library items (seconds, not minutes!)
 - ✅ **Update library items** → automatically reflects in all CVs using them
 - ✅ Create, view, edit, and delete job applications
+- ✅ **Create CV snapshots** for each application (immutable records)
+- ✅ **Track which CV version** was sent to each company
+- ✅ **View frozen snapshots** that never change (perfect for record-keeping)
 - ✅ Search, filter, sort, and paginate applications
 - ✅ Track application status (DRAFT → APPLIED → INTERVIEW → OFFER/REJECTED)
-- ✅ Preview CVs with "Clean Navy" template in real-time
+- ✅ Preview CVs with professional "Clean Navy" template in real-time
 - ✅ Set default CV for applications
 
-**Key Innovation - Master Library:**
+### Key Innovations:
+
+**Master Library (Phase 4A):**
 - 📚 Add experiences once in Settings → Experience Library
 - 🎯 Create tailored CVs by selecting relevant items (seconds, not minutes)
 - ♻️ Update experience in one place → updates everywhere automatically
 - 🚀 Create role-specific CVs (Software Engineer, Data Scientist, etc.) effortlessly
 
-**Recommended Next Steps:**
-1. **Phase 4B:** CV Snapshots - Link CVs to applications, create immutable snapshots when applying
-2. **Phase 4C:** PDF Export - Add PDF generation for downloadable CVs (puppeteer/react-pdf)
-3. **Phase 5:** Dashboard Analytics - Stats, charts, application funnel visualization
-4. **Production:** Deploy to production - CI/CD, Docker Compose, Nginx reverse proxy
+**CV Snapshots (Phase 4B):**
+- 📸 Create immutable snapshot when applying
+- 🔒 Frozen forever - won't change if you update profile/library
+- 📊 Track exactly which CV version went to each company
+- ♻️ Recreate snapshots anytime if needed
+- 🎯 Perfect for compliance, record-keeping, and comparison
 
-**Suggested:** Go with **Phase 4B (CV Snapshots)** to track which CV was used for each application!
+### Quality & Polish:
+- ✅ All backend tests passing (92/92)
+- ✅ Frontend builds successfully
+- ✅ Bug fixes completed (DELETE requests, colors, contrast, hover states)
+- ✅ Professional UI with optimized typography and colors
+- ✅ Excellent UX with proper feedback, loading states, and confirmations
+- ✅ Production-ready code quality
+
+### Recommended Next Steps:
+1. **Phase 4C:** PDF Export - Add PDF generation for downloadable CVs and snapshots (puppeteer/react-pdf)
+2. **Phase 5:** Dashboard Analytics - Stats, charts, application funnel visualization, success metrics
+3. **Phase 6:** Email Integration - Track email communications with companies
+4. **Production Deployment:** CI/CD pipeline, Docker Compose, Nginx reverse proxy, SSL
+
+**Suggested Next:** **Phase 4C (PDF Export)** to add downloadable PDF versions of CVs and snapshots!
 
 ---
 

@@ -35,6 +35,7 @@ model User {
   educations        UserEducation[]
   skills            UserSkill[]
   projects          UserProject[]
+  cvSnapshots       CvSnapshot[]
 
   @@map("users")
 }
@@ -75,7 +76,8 @@ model JobApplication {
   createdAt     DateTime          @default(now()) @map("created_at")
   updatedAt     DateTime          @updatedAt @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cvSnapshot CvSnapshot?
 
   @@index([userId, status])
   @@index([userId, createdAt])
@@ -250,6 +252,122 @@ model CvProjectInclusion {
   @@unique([cvId, projectId])
   @@index([cvId, order])
   @@map("cv_project_inclusions")
+}
+
+// ============================================
+// CV Snapshots (Phase 4B)
+// Immutable CV copies linked to applications
+// ============================================
+
+// Main CV Snapshot
+model CvSnapshot {
+  id            String     @id @default(uuid())
+  userId        String     @map("user_id")
+  cvDocumentId  String?    @map("cv_document_id") // Source CV (nullable if CV deleted)
+  applicationId String?    @unique @map("application_id") // Link to application (one snapshot per application)
+  title         String     @db.VarChar(120)
+  template      CvTemplate @default(CLEAN_NAVY)
+  createdAt     DateTime   @default(now()) @map("created_at")
+
+  user              User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  application       JobApplication?             @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  header            CvSnapshotHeader?
+  workExperiences   CvSnapshotWorkExperience[]
+  educations        CvSnapshotEducation[]
+  skills            CvSnapshotSkill[]
+  projects          CvSnapshotProject[]
+
+  @@index([userId, createdAt])
+  @@index([applicationId])
+  @@map("cv_snapshots")
+}
+
+// Snapshot Header (Profile data at time of snapshot)
+model CvSnapshotHeader {
+  id          String  @id @default(uuid())
+  snapshotId  String  @unique @map("snapshot_id")
+  firstName   String? @db.VarChar(100) @map("first_name")
+  lastName    String? @db.VarChar(100) @map("last_name")
+  email       String  @db.VarChar(255)
+  phone       String? @db.VarChar(50)
+  location    String? @db.VarChar(120)
+  headline    String? @db.VarChar(160)
+  summary     String? @db.Text
+  linkedinUrl String? @db.VarChar(300) @map("linkedin_url")
+  githubUrl   String? @db.VarChar(300) @map("github_url")
+  websiteUrl  String? @db.VarChar(300) @map("website_url")
+
+  snapshot CvSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@map("cv_snapshot_headers")
+}
+
+// Snapshot Work Experience
+model CvSnapshotWorkExperience {
+  id          String    @id @default(uuid())
+  snapshotId  String    @map("snapshot_id")
+  company     String    @db.VarChar(200)
+  role        String    @db.VarChar(200)
+  location    String?   @db.VarChar(120)
+  startDate   DateTime  @map("start_date") @db.Date
+  endDate     DateTime? @map("end_date") @db.Date
+  isCurrent   Boolean   @default(false) @map("is_current")
+  description String?   @db.Text
+  order       Int       @default(0)
+
+  snapshot CvSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@index([snapshotId, order])
+  @@map("cv_snapshot_work_experiences")
+}
+
+// Snapshot Education
+model CvSnapshotEducation {
+  id          String    @id @default(uuid())
+  snapshotId  String    @map("snapshot_id")
+  school      String    @db.VarChar(200)
+  degree      String?   @db.VarChar(200)
+  field       String?   @db.VarChar(200)
+  startDate   DateTime? @map("start_date") @db.Date
+  endDate     DateTime? @map("end_date") @db.Date
+  description String?   @db.Text
+  order       Int       @default(0)
+
+  snapshot CvSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@index([snapshotId, order])
+  @@map("cv_snapshot_educations")
+}
+
+// Snapshot Skill
+model CvSnapshotSkill {
+  id         String        @id @default(uuid())
+  snapshotId String        @map("snapshot_id")
+  name       String        @db.VarChar(80)
+  level      CvSkillLevel?
+  category   String?       @db.VarChar(80)
+  order      Int           @default(0)
+
+  snapshot CvSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@index([snapshotId, order])
+  @@map("cv_snapshot_skills")
+}
+
+// Snapshot Project
+model CvSnapshotProject {
+  id          String   @id @default(uuid())
+  snapshotId  String   @map("snapshot_id")
+  name        String   @db.VarChar(120)
+  description String?  @db.Text
+  link        String?  @db.VarChar(300)
+  tech        String[] @default([])
+  order       Int      @default(0)
+
+  snapshot CvSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@index([snapshotId, order])
+  @@map("cv_snapshot_projects")
 }
 
 

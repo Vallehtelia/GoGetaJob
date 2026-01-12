@@ -2,7 +2,7 @@
 
 A modern, production-ready job application tracking system with a secure TypeScript backend and sleek dark-themed frontend.
 
-## 🚀 Features (Phases 0-1, 2A, 2B, 3, 3C & 4A - Master Library)
+## 🚀 Features (Phases 0-1, 2A, 2B, 3, 3C, 4A & 4B)
 
 ### Backend
 - ✅ **Secure Authentication** - JWT access + refresh token flow with Argon2 password hashing
@@ -10,6 +10,7 @@ A modern, production-ready job application tracking system with a secure TypeScr
 - ✅ **Job Applications** - Full CRUD with search, filters, and pagination
 - ✅ **Experience Library** - Master library for work, education, skills, and projects
 - ✅ **CV Management** - Reusable CV builder with selection-based UI
+- ✅ **CV Snapshots** - Immutable CV copies linked to applications
 - ✅ **Database** - PostgreSQL with Prisma ORM (12 tables, 20+ indexes)
 - ✅ **Type Safety** - Full TypeScript implementation
 - ✅ **Security** - Rate limiting, secure headers, input validation with Zod
@@ -33,6 +34,8 @@ A modern, production-ready job application tracking system with a secure TypeScr
 - ✅ **Experience Library** - Master library for reusable work, education, skills, projects
 - ✅ **CV Builder** - Selection-based CV editor with live preview (Template v1: Clean Navy)
 - ✅ **Smart CV Creation** - Add experiences once, reuse in multiple CVs
+- ✅ **CV Snapshots** - Create immutable CV copies for each application
+- ✅ **Snapshot Tracking** - Know exactly which CV version you sent to each company
 - ✅ **Toast Notifications** - Success/error feedback for all actions
 
 ## 📋 Prerequisites
@@ -615,6 +618,93 @@ Content-Type: application/json
 - ✅ Cannot add same item twice to same CV
 - ✅ Removing from CV doesn't delete from library
 - ✅ Deleting library item removes from all CVs (cascade)
+
+---
+
+## 📸 CV Snapshot API (Phase 4B)
+
+Create immutable CV snapshots linked to job applications.
+
+### Create Snapshot for Application
+
+```http
+POST /applications/:id/snapshot
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+
+{
+  "cvDocumentId": "uuid-of-cv-to-snapshot"
+}
+```
+
+**Response (201):**
+```json
+{
+  "message": "CV snapshot created successfully",
+  "data": {
+    "snapshotId": "uuid"
+  }
+}
+```
+
+**Behavior:**
+- Creates immutable copy of CV + profile data
+- Links to application (one snapshot per application)
+- If snapshot already exists, replaces it with new one
+- Snapshot data never changes even if library/profile updates
+
+### Get Application Snapshot
+
+```http
+GET /applications/:id/snapshot
+Authorization: Bearer <accessToken>
+```
+
+**Response (200):**
+```json
+{
+  "data": {
+    "id": "snapshot-uuid",
+    "title": "Snapshot for My CV",
+    "template": "CLEAN_NAVY",
+    "createdAt": "2026-01-12T...",
+    "header": {
+      "firstName": "John",
+      "lastName": "Doe",
+      "email": "john@example.com",
+      "headline": "Software Engineer",
+      ...
+    },
+    "workExperiences": [...],
+    "educations": [...],
+    "skills": [...],
+    "projects": [...]
+  }
+}
+```
+
+### Delete Application Snapshot
+
+```http
+DELETE /applications/:id/snapshot
+Authorization: Bearer <accessToken>
+```
+
+**Response (200):**
+```json
+{
+  "message": "CV snapshot deleted successfully"
+}
+```
+
+### Get Snapshot by ID (Optional)
+
+```http
+GET /snapshots/:id
+Authorization: Bearer <accessToken>
+```
+
+**Use Case:** Direct access to snapshot when you have the snapshot ID
 
 ---
 

@@ -7,10 +7,11 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { ArrowLeft, Loader2, FileText, Eye, RefreshCw, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "@/components/Toast";
-import type { ApplicationStatus, JobApplication } from "@/lib/types";
+import type { ApplicationStatus, JobApplication, CvSnapshot, CvDocument } from "@/lib/types";
 
 export default function EditApplicationPage() {
   const router = useRouter();
@@ -22,32 +23,49 @@ export default function EditApplicationPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState<JobApplication | null>(null);
 
-  // Load application
+  // Snapshot state
+  const [snapshot, setSnapshot] = useState<CvSnapshot | null>(null);
+  const [loadingSnapshot, setLoadingSnapshot] = useState(false);
+  const [cvs, setCvs] = useState<CvDocument[]>([]);
+  const [selectedCvId, setSelectedCvId] = useState<string>('');
+  const [showSnapshotDialog, setShowSnapshotDialog] = useState<'create' | 'recreate' | 'delete' | null>(null);
+
+  // Load application and snapshot
   useEffect(() => {
-    const fetchApplication = async () => {
+    const fetchData = async () => {
       try {
-        const data = await api.getApplication(id);
-        console.log('Loaded application data:', data);
+        setLoading(true);
+        const [appData, cvsData] = await Promise.all([
+          api.getApplication(id),
+          api.listCvs(),
+        ]);
         
-        // Transform data for form - keep dates as ISO strings for proper display
+        // Transform data for form
         const transformedData: JobApplication = {
-          id: data.id,
-          userId: data.userId,
-          company: data.company,
-          position: data.position,
-          link: data.link || '',
-          status: data.status,
-          appliedAt: data.appliedAt || '',
-          lastContactAt: data.lastContactAt || '',
-          notes: data.notes || '',
-          createdAt: data.createdAt,
-          updatedAt: data.updatedAt,
+          id: appData.id,
+          userId: appData.userId,
+          company: appData.company,
+          position: appData.position,
+          link: appData.link || '',
+          status: appData.status,
+          appliedAt: appData.appliedAt || '',
+          lastContactAt: appData.lastContactAt || '',
+          notes: appData.notes || '',
+          createdAt: appData.createdAt,
+          updatedAt: appData.updatedAt,
         };
         
-        console.log('Transformed form data:', transformedData);
         setFormData(transformedData);
+        setCvs(cvsData);
+
+        // Try to load snapshot
+        try {
+          const snapshotData = await api.getApplicationSnapshot(id);
+          setSnapshot(snapshotData);
+        } catch {
+          setSnapshot(null);
+        }
       } catch (error: any) {
-        console.error('Failed to load application:', error);
         toast.error(error.message || "Failed to load application");
         router.push("/applications");
       } finally {
@@ -55,8 +73,54 @@ export default function EditApplicationPage() {
       }
     };
 
-    fetchApplication();
+    fetchData();
   }, [id, router]);
+
+  const loadSnapshot = async () => {
+    try {
+      setLoadingSnapshot(true);
+      const snapshotData = await api.getApplicationSnapshot(id);
+      setSnapshot(snapshotData);
+    } catch {
+      setSnapshot(null);
+    } finally {
+      setLoadingSnapshot(false);
+    }
+  };
+
+  const handleCreateSnapshot = async () => {
+    if (!selectedCvId) {
+      toast.error('Please select a CV');
+      return;
+    }
+
+    try {
+      setLoadingSnapshot(true);
+      await api.createApplicationSnapshot(id, selectedCvId);
+      toast.success('CV snapshot created successfully');
+      setShowSnapshotDialog(null);
+      setSelectedCvId('');
+      loadSnapshot();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to create snapshot');
+    } finally {
+      setLoadingSnapshot(false);
+    }
+  };
+
+  const handleDeleteSnapshot = async () => {
+    try {
+      setLoadingSnapshot(true);
+      await api.deleteApplicationSnapshot(id);
+      toast.success('Snapshot deleted');
+      setSnapshot(null);
+      setShowSnapshotDialog(null);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete snapshot');
+    } finally {
+      setLoadingSnapshot(false);
+    }
+  };
 
   const validateForm = () => {
     if (!formData) return false;
@@ -98,23 +162,14 @@ export default function EditApplicationPage() {
     }
 
     setSaving(true);
-
     try {
-      // Convert date strings to ISO format
-      const appliedAtISO = formData.appliedAt 
-        ? new Date(formData.appliedAt).toISOString() 
-        : null;
-      const lastContactAtISO = formData.lastContactAt 
-        ? new Date(formData.lastContactAt).toISOString() 
-        : null;
-
       await api.updateApplication(id, {
         company: formData.company,
         position: formData.position,
         link: formData.link || null,
         status: formData.status,
-        appliedAt: appliedAtISO,
-        lastContactAt: lastContactAtISO,
+        appliedAt: formData.appliedAt || null,
+        lastContactAt: formData.lastContactAt || null,
         notes: formData.notes || null,
       });
 
@@ -127,16 +182,16 @@ export default function EditApplicationPage() {
     }
   };
 
-  if (loading) {
+  if (loading || !formData) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-accent" />
+      <div className="space-y-6 max-w-3xl">
+        <Card>
+          <CardContent className="p-12 flex items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-accent" />
+          </CardContent>
+        </Card>
       </div>
     );
-  }
-
-  if (!formData) {
-    return null;
   }
 
   return (
@@ -156,6 +211,7 @@ export default function EditApplicationPage() {
         </p>
       </div>
 
+      {/* Application Details Card */}
       <Card>
         <CardHeader>
           <CardTitle>Application Details</CardTitle>
@@ -319,6 +375,207 @@ export default function EditApplicationPage() {
           </form>
         </CardContent>
       </Card>
+
+      {/* CV Snapshot Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-accent" />
+              CV Snapshot
+            </CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loadingSnapshot ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-accent" />
+            </div>
+          ) : snapshot ? (
+            // Snapshot exists
+            <div className="space-y-4">
+              <div className="bg-navy-50 border border-navy-200 rounded-lg p-4">
+                <div className="flex items-start justify-between mb-2">
+                  <div>
+                    <h4 className="font-semibold text-navy-900">
+                      {snapshot.title}
+                    </h4>
+                    <p className="text-sm text-gray-700">
+                      Template: {snapshot.template}
+                    </p>
+                    <p className="text-xs text-gray-600 mt-1">
+                      Created: {new Date(snapshot.createdAt).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </p>
+                  </div>
+                  <div className="bg-navy-100 px-3 py-1 rounded-full">
+                    <span className="text-xs font-medium text-navy-800">Immutable</span>
+                  </div>
+                </div>
+
+                <div className="text-xs text-gray-600 mt-3 bg-blue-50 border border-blue-200 rounded p-2">
+                  💡 This snapshot is a frozen copy of your CV at the time you applied. 
+                  It won&apos;t change even if you update your profile or library.
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => router.push(`/applications/${id}/snapshot`)}
+                  variant="primary"
+                  size="md"
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  View Snapshot
+                </Button>
+                <Button
+                  onClick={() => setShowSnapshotDialog('recreate')}
+                  variant="secondary"
+                  size="md"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Recreate
+                </Button>
+                <Button
+                  onClick={() => setShowSnapshotDialog('delete')}
+                  variant="danger"
+                  size="md"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </Button>
+              </div>
+            </div>
+          ) : (
+            // No snapshot
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                No CV snapshot attached yet. Create a snapshot to preserve the exact version of your CV used for this application.
+              </p>
+
+              <div className="space-y-3">
+                <Label htmlFor="cvSelect">Select CV to Snapshot</Label>
+                {cvs.length === 0 ? (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <p className="text-sm text-yellow-800">
+                      You don&apos;t have any CVs yet.{' '}
+                      <Link href="/cv" className="font-semibold underline">
+                        Create your first CV
+                      </Link>{' '}
+                      to create a snapshot.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <select
+                      id="cvSelect"
+                      value={selectedCvId}
+                      onChange={(e) => setSelectedCvId(e.target.value)}
+                      className="flex h-11 w-full rounded-xl border border-border bg-background px-4 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <option value="">Choose a CV...</option>
+                      {cvs.map((cv) => (
+                        <option key={cv.id} value={cv.id}>
+                          {cv.title} {cv.isDefault && '(Default)'}
+                        </option>
+                      ))}
+                    </select>
+
+                    <Button
+                      onClick={() => setShowSnapshotDialog('create')}
+                      disabled={!selectedCvId || loadingSnapshot}
+                      size="md"
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      {loadingSnapshot ? 'Creating...' : 'Create Snapshot'}
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Confirmation Dialogs */}
+      {showSnapshotDialog === 'create' && (
+        <ConfirmDialog
+          isOpen={true}
+          title="Create CV Snapshot"
+          message={`Create an immutable snapshot of "${cvs.find(cv => cv.id === selectedCvId)?.title}" for this application? This will preserve your CV exactly as it is now.`}
+          confirmLabel="Create Snapshot"
+          onConfirm={handleCreateSnapshot}
+          onCancel={() => setShowSnapshotDialog(null)}
+        />
+      )}
+
+      {showSnapshotDialog === 'recreate' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowSnapshotDialog(null)} />
+          <Card className="relative max-w-lg w-full mx-4">
+            <CardHeader>
+              <CardTitle>Recreate CV Snapshot</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Select a CV to create a new snapshot. This will replace the existing snapshot.
+              </p>
+
+              <div className="space-y-2">
+                <Label htmlFor="recreateCvSelect">Select CV</Label>
+                <select
+                  id="recreateCvSelect"
+                  value={selectedCvId}
+                  onChange={(e) => setSelectedCvId(e.target.value)}
+                  className="flex h-11 w-full rounded-xl border border-border bg-background px-4 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <option value="">Choose a CV...</option>
+                  {cvs.map((cv) => (
+                    <option key={cv.id} value={cv.id}>
+                      {cv.title} {cv.isDefault && '(Default)'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex gap-3 justify-end">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setShowSnapshotDialog(null);
+                    setSelectedCvId('');
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleCreateSnapshot}
+                  disabled={!selectedCvId || loadingSnapshot}
+                >
+                  {loadingSnapshot ? 'Creating...' : 'Recreate Snapshot'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {showSnapshotDialog === 'delete' && (
+        <ConfirmDialog
+          isOpen={true}
+          title="Delete CV Snapshot"
+          message="Are you sure you want to delete this CV snapshot? This action cannot be undone."
+          confirmLabel="Delete"
+          isDestructive={true}
+          onConfirm={handleDeleteSnapshot}
+          onCancel={() => setShowSnapshotDialog(null)}
+        />
+      )}
     </div>
   );
 }

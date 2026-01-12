@@ -268,3 +268,85 @@ export interface AddInclusionInput {
 export interface UpdateInclusionOrderInput {
   order: number;
 }
+
+// ============================================
+// CV Snapshot Types (Phase 4B)
+// ============================================
+
+export interface CvSnapshotHeader {
+  id: string;
+  snapshotId: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string;
+  phone: string | null;
+  location: string | null;
+  headline: string | null;
+  summary: string | null;
+  linkedinUrl: string | null;
+  githubUrl: string | null;
+  websiteUrl: string | null;
+}
+
+export interface CvSnapshotWorkExperience {
+  id: string;
+  snapshotId: string;
+  company: string;
+  role: string;
+  location: string | null;
+  startDate: string;
+  endDate: string | null;
+  isCurrent: boolean;
+  description: string | null;
+  order: number;
+}
+
+export interface CvSnapshotEducation {
+  id: string;
+  snapshotId: string;
+  school: string;
+  degree: string | null;
+  field: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  description: string | null;
+  order: number;
+}
+
+export interface CvSnapshotSkill {
+  id: string;
+  snapshotId: string;
+  name: string;
+  level: CvSkillLevel | null;
+  category: string | null;
+  order: number;
+}
+
+export interface CvSnapshotProject {
+  id: string;
+  snapshotId: string;
+  name: string;
+  description: string | null;
+  link: string | null;
+  tech: string[];
+  order: number;
+}
+
+export interface CvSnapshot {
+  id: string;
+  userId: string;
+  cvDocumentId: string | null;
+  applicationId: string | null;
+  title: string;
+  template: CvTemplate;
+  createdAt: string;
+  header: CvSnapshotHeader | null;
+  workExperiences: CvSnapshotWorkExperience[];
+  educations: CvSnapshotEducation[];
+  skills: CvSnapshotSkill[];
+  projects: CvSnapshotProject[];
+}
+
+export interface CreateSnapshotInput {
+  cvDocumentId: string;
+}

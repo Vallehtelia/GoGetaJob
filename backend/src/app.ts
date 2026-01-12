@@ -13,6 +13,7 @@ import applicationsRoutes from './modules/applications/routes.js';
 import profileRoutes from './modules/profile/routes.js';
 import cvRoutes from './modules/cv/routes.js';
 import libraryRoutes from './modules/library/routes.js';
+import snapshotRoutes from './modules/snapshots/routes.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const fastify = Fastify({
@@ -42,6 +43,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(profileRoutes);
   await fastify.register(libraryRoutes);
   await fastify.register(cvRoutes);
+  await fastify.register(snapshotRoutes);
 
   // Global error handler
   fastify.setErrorHandler((error, _request, reply) => {

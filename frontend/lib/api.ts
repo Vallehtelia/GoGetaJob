@@ -33,6 +33,8 @@ import type {
   CreateProjectInput,
   UpdateProjectInput,
   AddInclusionInput,
+  CvSnapshot,
+  CreateSnapshotInput,
 } from './types';
 
 // Get API base URL from env or fallback to localhost
@@ -598,6 +600,44 @@ class ApiClient {
       method: 'PATCH',
       body: JSON.stringify({ order }),
     });
+  }
+
+  // ============================================
+  // CV Snapshot endpoints (Phase 4B)
+  // ============================================
+
+  async createApplicationSnapshot(applicationId: string, cvDocumentId: string): Promise<string> {
+    const response = await this.request<{ message: string; data: { snapshotId: string } }>(
+      `/applications/${applicationId}/snapshot`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ cvDocumentId }),
+      }
+    );
+    return response.data.snapshotId;
+  }
+
+  async getApplicationSnapshot(applicationId: string): Promise<CvSnapshot> {
+    const response = await this.request<{ data: CvSnapshot }>(
+      `/applications/${applicationId}/snapshot`,
+      {
+        method: 'GET',
+      }
+    );
+    return response.data;
+  }
+
+  async deleteApplicationSnapshot(applicationId: string): Promise<void> {
+    await this.request<{ message: string }>(`/applications/${applicationId}/snapshot`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getSnapshotById(snapshotId: string): Promise<CvSnapshot> {
+    const response = await this.request<{ data: CvSnapshot }>(`/snapshots/${snapshotId}`, {
+      method: 'GET',
+    });
+    return response.data;
   }
 }
 
