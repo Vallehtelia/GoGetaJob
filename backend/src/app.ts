@@ -16,6 +16,7 @@ import cvRoutes from './modules/cv/routes.js';
 import libraryRoutes from './modules/library/routes.js';
 import snapshotRoutes from './modules/snapshots/routes.js';
 import openaiRoutes from './modules/openai/routes.js';
+import aiRoutes from './modules/ai/routes.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const fastify = Fastify({
@@ -48,6 +49,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(cvRoutes);
   await fastify.register(snapshotRoutes);
   await fastify.register(openaiRoutes);
+  await fastify.register(aiRoutes);
 
   // Global error handler
   fastify.setErrorHandler((error, _request, reply) => {

@@ -38,6 +38,10 @@ import type {
   OpenAiKeyStatus,
   SetOpenAiKeyInput,
   SetOpenAiKeyResponse,
+  OptimizeCvInput,
+  OptimizeCvResponse,
+  ChatMessageInput,
+  ChatMessageResponse,
 } from './types';
 
 // Get API base URL from env or fallback to localhost
@@ -700,6 +704,30 @@ class ApiClient {
   async deleteOpenAiKey(): Promise<{ message: string; hasKey: boolean }> {
     return this.request<{ message: string; hasKey: boolean }>('/settings/openai', {
       method: 'DELETE',
+    });
+  }
+
+  // ============================================
+  // AI CV Optimization endpoints
+  // ============================================
+
+  async optimizeCvSummary(
+    cvId: string,
+    jobPostingText: string
+  ): Promise<OptimizeCvResponse> {
+    return this.request<OptimizeCvResponse>('/ai/cv/optimize', {
+      method: 'POST',
+      body: JSON.stringify({ cvId, jobPostingText }),
+    });
+  }
+
+  async sendChatMessage(
+    message: string,
+    conversationId?: string
+  ): Promise<ChatMessageResponse> {
+    return this.request<ChatMessageResponse>('/ai/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message, conversationId }),
     });
   }
 }

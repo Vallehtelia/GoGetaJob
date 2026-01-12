@@ -114,6 +114,7 @@ export interface CvDocument {
   title: string;
   isDefault: boolean;
   template: CvTemplate;
+  overrideSummary?: string | null;
   createdAt: string;
   updatedAt: string;
   workExperiences?: UserWorkExperience[];
@@ -371,4 +372,35 @@ export interface SetOpenAiKeyResponse {
   message: string;
   hasKey: boolean;
   last4: string;
+}
+
+// ============================================
+// AI CV Optimization Types
+// ============================================
+
+export interface OptimizeCvInput {
+  cvId: string;
+  jobPostingText: string;
+}
+
+export interface OptimizeCvResponse {
+  message: string;
+  cvId: string;
+  summary: string;
+  keySkills: string[];
+  roleFitBullets: string[];
+}
+
+// ============================================
+// AI Chat Types
+// ============================================
+
+export interface ChatMessageInput {
+  message: string;
+  conversationId?: string;
+}
+
+export interface ChatMessageResponse {
+  message: string;
+  conversationId: string | null;
 }

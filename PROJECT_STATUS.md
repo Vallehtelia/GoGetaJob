@@ -1,8 +1,8 @@
 # GoGetaJob (GGJ) - Project Status
 
 **Last Updated:** 2026-01-12  
-**Current Phase:** 4B (CV Snapshots) ✅ COMPLETE  
-**Previous Phases:** 0-1 (Bootstrap) ✅ | 2A (Job Applications) ✅ | 2B (Profile) ✅ | 3 (Frontend) ✅ | 3C (Integration) ✅ | 4A (CV Master Library) ✅
+**Current Phase:** 4Y (AI Chatbot) ✅ COMPLETE  
+**Previous Phases:** 0-1 (Bootstrap) ✅ | 2A (Job Applications) ✅ | 2B (Profile) ✅ | 3 (Frontend) ✅ | 3C (Integration) ✅ | 4A (CV Master Library) ✅ | 4B (CV Snapshots) ✅ | 4X (AI CV Summary) ✅
 
 ---
 
@@ -690,6 +690,73 @@
 4. **Production Deployment:** CI/CD pipeline, Docker Compose, Nginx reverse proxy, SSL
 
 **Suggested Next:** **Phase 4C (PDF Export)** to add downloadable PDF versions of CVs and snapshots!
+
+---
+
+## ✅ Phase 4X: AI CV Summary Generation (COMPLETED)
+
+### Overview
+AI-powered Professional Summary generation using OpenAI Structured Outputs. Users paste job postings and get tailored summaries generated server-side.
+
+### Backend Implementation
+- ✅ **Database:** Added `overrideSummary` field to `CvDocument`
+- ✅ **AI Module:** Created `/ai/cv/optimize` endpoint
+- ✅ **OpenAI Integration:** Uses gpt-4o-mini with Structured Outputs (JSON Schema strict)
+- ✅ **Security:** Server-side only, encrypted API keys, user isolation
+- ✅ **Data Loading:** Fetches profile + CV + inclusions + available library
+- ✅ **Response Format:** Returns summary + keySkills + roleFitBullets
+
+### Frontend Implementation
+- ✅ **UI:** "Generate using AI" button with drawer/modal
+- ✅ **Key Check:** Validates OpenAI key before allowing generation
+- ✅ **Preview Update:** Shows `overrideSummary` immediately after generation
+- ✅ **AI Insights:** Displays keySkills and roleFitBullets in drawer
+- ✅ **Error Handling:** Guides users to Settings if key missing
+
+### Security Features
+- ✅ No OpenAI calls from frontend
+- ✅ API keys never exposed to browser
+- ✅ Encrypted storage and usage
+- ✅ CV ownership verification
+- ✅ Input validation (50-12000 chars)
+
+### Documentation
+- ✅ `PHASE_4X_AI_CV_SUMMARY.md` - Complete implementation guide
+- ✅ System prompt file with strict rules
+- ✅ JSON Schema for structured outputs
+
+---
+
+## ✅ Phase 4Y: AI Chatbot Assistant (COMPLETED)
+
+### Overview
+AI chatbot assistant available on all pages, providing personalized help with job search tasks. Has access to user's profile, experience library, applications, and CVs.
+
+### Backend Implementation
+- ✅ **Chat Endpoint:** POST /ai/chat with user context
+- ✅ **System Prompt:** Context-aware assistant prompt
+- ✅ **Data Loading:** Fetches profile, library, applications, CVs
+- ✅ **Security:** Server-side only, encrypted API keys
+- ✅ **Error Handling:** Graceful handling of missing keys and API errors
+
+### Frontend Implementation
+- ✅ **Chatbot Component:** Floating button (bottom-right)
+- ✅ **Chat UI:** Message history, input, loading states
+- ✅ **Global Integration:** Added to root layout (all pages)
+- ✅ **UX:** Auto-scroll, Enter to send, key validation
+- ✅ **Styling:** Gradient theme matching app design
+
+### Features
+- ✅ Context-aware responses using user data
+- ✅ Helps with summaries, cover letters, CV tailoring
+- ✅ Interview prep and application strategy
+- ✅ Closed by default, opens on click
+- ✅ Persistent across page navigation
+
+### Documentation
+- ✅ `AI_CHATBOT_FEATURE.md` - Complete guide
+- ✅ System prompt with strict rules
+- ✅ Usage examples and customization
 
 ---
 

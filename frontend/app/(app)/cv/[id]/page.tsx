@@ -16,7 +16,11 @@ import {
   Plus,
   Check,
   Info,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
+import { Modal } from "@/components/ui/Modal";
+import { Textarea } from "@/components/ui/Textarea";
 import { api } from "@/lib/api";
 import type {
   CvDocument,
@@ -36,6 +40,14 @@ export default function CVEditorPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'work' | 'education' | 'skills' | 'projects'>('work');
+  
+  // AI Generation state
+  const [showAiDrawer, setShowAiDrawer] = useState(false);
+  const [hasOpenAiKey, setHasOpenAiKey] = useState<boolean | null>(null);
+  const [checkingKey, setCheckingKey] = useState(false);
+  const [jobPostingText, setJobPostingText] = useState('');
+  const [generating, setGenerating] = useState(false);
+  const [aiResult, setAiResult] = useState<{ keySkills: string[]; roleFitBullets: string[] } | null>(null);
 
   // Library data (all available items)
   const [allWork, setAllWork] = useState<UserWorkExperience[]>([]);
@@ -96,6 +108,55 @@ export default function CVEditorPage() {
       setIncludedProjectIds(new Set(cvData.projects?.map(p => p.id) || []));
     } catch (error: any) {
       toast.error(error.message || "Failed to refresh CV");
+    }
+  };
+
+  // Check OpenAI key status
+  const checkOpenAiKey = async () => {
+    try {
+      setCheckingKey(true);
+      const status = await api.getOpenAiKeyStatus();
+      setHasOpenAiKey(status.hasKey);
+    } catch (error: any) {
+      console.error('Failed to check OpenAI key status:', error);
+      setHasOpenAiKey(false);
+    } finally {
+      setCheckingKey(false);
+    }
+  };
+
+  // Generate AI summary
+  const handleGenerateSummary = async () => {
+    if (!jobPostingText.trim() || jobPostingText.trim().length < 50) {
+      toast.error('Please paste a job posting (at least 50 characters)');
+      return;
+    }
+
+    try {
+      setGenerating(true);
+      const result = await api.optimizeCvSummary(cvId, jobPostingText.trim());
+      
+      // Update CV with new summary
+      await refreshCv();
+      
+      // Store AI insights
+      setAiResult({
+        keySkills: result.keySkills,
+        roleFitBullets: result.roleFitBullets,
+      });
+      
+      toast.success('Summary updated for this role');
+    } catch (error: any) {
+      const errorData = error.errorData || error;
+      if (errorData?.code === 'OPENAI_KEY_NOT_SET' || errorData?.error === 'Bad Request') {
+        toast.error('No OpenAI API key saved. Add it in Settings → API Settings.');
+        setShowAiDrawer(false);
+        router.push('/settings?tab=api');
+      } else {
+        toast.error(errorData?.message || error.message || 'Failed to generate summary');
+      }
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -487,11 +548,144 @@ export default function CVEditorPage() {
           </div>
 
           {/* Preview Side */}
-          <div className="lg:sticky lg:top-6 lg:h-fit">
+          <div className="lg:sticky lg:top-6 lg:h-fit space-y-4">
+            <div className="flex justify-end">
+              <Button
+                onClick={() => {
+                  setShowAiDrawer(true);
+                  checkOpenAiKey();
+                }}
+                className="bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
+              >
+                <Sparkles className="w-4 h-4 mr-2" />
+                Generate using AI
+              </Button>
+            </div>
             <CVPreview cv={cv} profile={profile} />
           </div>
         </div>
       </div>
+
+      {/* AI Generation Drawer */}
+      <Modal
+        isOpen={showAiDrawer}
+        onClose={() => {
+          setShowAiDrawer(false);
+          setJobPostingText('');
+          setAiResult(null);
+        }}
+        title="Generate a tailored Professional Summary"
+        size="lg"
+      >
+        <div className="space-y-6">
+          {checkingKey ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-accent" />
+            </div>
+          ) : hasOpenAiKey === false ? (
+            <div className="space-y-4">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <p className="text-sm font-semibold text-yellow-900 mb-2">
+                  No OpenAI API key saved
+                </p>
+                <p className="text-xs text-yellow-800 mb-4">
+                  AI runs server-side; your key is never exposed in the browser.
+                </p>
+                <Button
+                  onClick={() => {
+                    setShowAiDrawer(false);
+                    router.push('/settings?tab=api');
+                  }}
+                  className="w-full"
+                >
+                  Go to Settings
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Paste the job posting here
+                </label>
+                <Textarea
+                  value={jobPostingText}
+                  onChange={(e) => setJobPostingText(e.target.value)}
+                  placeholder="Copy and paste the full job description..."
+                  rows={8}
+                  disabled={generating}
+                  className="font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground mt-2">
+                  We'll tailor the summary using your selected CV items and library.
+                </p>
+              </div>
+
+              {aiResult && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                  <h3 className="font-semibold text-blue-900">AI Insights</h3>
+                  {aiResult.keySkills.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-blue-800 mb-2">Key Skills:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {aiResult.keySkills.map((skill, i) => (
+                          <span
+                            key={i}
+                            className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded"
+                          >
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {aiResult.roleFitBullets.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-blue-800 mb-2">Role Fit:</p>
+                      <ul className="text-xs text-blue-700 space-y-1 list-disc list-inside">
+                        {aiResult.roleFitBullets.map((bullet, i) => (
+                          <li key={i}>{bullet}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <Button
+                  onClick={handleGenerateSummary}
+                  disabled={generating || !jobPostingText.trim() || jobPostingText.trim().length < 50}
+                  className="flex-1 bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
+                >
+                  {generating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Generate
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setShowAiDrawer(false);
+                    setJobPostingText('');
+                    setAiResult(null);
+                  }}
+                  disabled={generating}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      </Modal>
     </>
   );
 }
@@ -572,12 +766,14 @@ function CVPreview({ cv, profile }: { cv: CvDocument; profile: UserProfile }) {
         </div>
 
         {/* Summary */}
-        {profile.summary && (
+        {(cv.overrideSummary || profile.summary) && (
           <div>
             <h2 className="text-xl font-semibold text-gray-800 mb-3 border-b-2 border-navy-300 pb-1">
               Professional Summary
             </h2>
-            <p className="text-gray-900 text-sm leading-relaxed">{profile.summary}</p>
+            <p className="text-gray-900 text-sm leading-relaxed">
+              {cv.overrideSummary || profile.summary}
+            </p>
           </div>
         )}
 
