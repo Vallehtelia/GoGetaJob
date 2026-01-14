@@ -1,8 +1,16 @@
 import { FastifyPluginAsync } from 'fastify';
-import { optimizeCvSchema, chatMessageSchema } from './schemas.js';
+import {
+  optimizeCvSchema,
+  chatMessageSchema,
+  suggestCvSchema,
+  applyCvSuggestionSchema,
+  aiCvSuggestionSchema,
+} from './schemas.js';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { getOpenAiClient, generateCvSummary, chatWithAi } from '../../services/openaiClient.js';
+import { getOpenAiClient, generateCvSummary, chatWithAi, generateCvSuggestion } from '../../services/openaiClient.js';
+import { cvSuggestResponseJsonSchema, cvSuggestResponseZodSchema } from '../../ai/schemas/cvSuggest.schema.js';
+import { ok, fail } from '../../utils/httpResponse.js';
 
 // Load system prompts (relative to backend root)
 const systemPromptPath = join(process.cwd(), 'src/ai/prompts/cv_optimize.system.md');
@@ -11,7 +19,238 @@ const systemPrompt = readFileSync(systemPromptPath, 'utf-8');
 const chatbotPromptPath = join(process.cwd(), 'src/ai/prompts/chatbot.system.md');
 const chatbotSystemPrompt = readFileSync(chatbotPromptPath, 'utf-8');
 
+const cvSuggestPromptPath = join(process.cwd(), 'src/ai/prompts/cv_suggest.system.md');
+const cvSuggestSystemPrompt = readFileSync(cvSuggestPromptPath, 'utf-8');
+
 const aiRoutes: FastifyPluginAsync = async (fastify) => {
+  // CV Suggest endpoint: generate summary + suggested library IDs (no changes applied yet)
+  fastify.post('/ai/cv/suggest', {
+    onRequest: [fastify.authenticate],
+    handler: async (request, reply) => {
+      const userId = request.user.userId;
+      try {
+        const body = suggestCvSchema.parse(request.body);
+
+        // Verify CV belongs to user
+        const cv = await fastify.prisma.cvDocument.findFirst({
+          where: { id: body.cvId, userId },
+          select: { id: true, title: true, template: true, overrideSummary: true, canvasState: true },
+        });
+        if (!cv) {
+          return fail(reply, 404, 'CV not found', 'NotFound');
+        }
+
+        const openaiKey = await fastify.prisma.openAiKey.findUnique({ where: { userId } });
+        if (!openaiKey) {
+          return fail(
+            reply,
+            400,
+            'No OpenAI API key saved. Add it in Settings → API Settings.',
+            'OpenAiKeyNotSet'
+          );
+        }
+
+        // Load profile + full library + current inclusions (IDs)
+        const [profile, work, education, skills, projects, workInc, eduInc, skillInc, projInc] =
+          await Promise.all([
+            fastify.prisma.user.findUnique({
+              where: { id: userId },
+              select: {
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+                location: true,
+                headline: true,
+                summary: true,
+                linkedinUrl: true,
+                githubUrl: true,
+                websiteUrl: true,
+              },
+            }),
+            fastify.prisma.userWorkExperience.findMany({ where: { userId }, orderBy: { startDate: 'desc' } }),
+            fastify.prisma.userEducation.findMany({ where: { userId }, orderBy: { startDate: 'desc' } }),
+            fastify.prisma.userSkill.findMany({ where: { userId } }),
+            fastify.prisma.userProject.findMany({ where: { userId } }),
+            fastify.prisma.cvWorkInclusion.findMany({ where: { cvId: body.cvId }, select: { workExperienceId: true, order: true }, orderBy: { order: 'asc' } }),
+            fastify.prisma.cvEducationInclusion.findMany({ where: { cvId: body.cvId }, select: { educationId: true, order: true }, orderBy: { order: 'asc' } }),
+            fastify.prisma.cvSkillInclusion.findMany({ where: { cvId: body.cvId }, select: { skillId: true, order: true }, orderBy: { order: 'asc' } }),
+            fastify.prisma.cvProjectInclusion.findMany({ where: { cvId: body.cvId }, select: { projectId: true, order: true }, orderBy: { order: 'asc' } }),
+          ]);
+
+        if (!profile) {
+          return fail(reply, 404, 'Profile not found', 'NotFound');
+        }
+
+        const inputPayload = {
+          jobPostingText: body.jobPosting,
+          mode: body.mode ?? 'replace',
+          profile,
+          cv: { id: cv.id, title: cv.title, template: cv.template },
+          library: {
+            work: work.map((w) => ({ id: w.id, company: w.company, role: w.role, location: w.location, startDate: w.startDate, endDate: w.endDate, isCurrent: w.isCurrent, description: w.description })),
+            education: education.map((e) => ({ id: e.id, school: e.school, degree: e.degree, field: e.field, startDate: e.startDate, endDate: e.endDate, description: e.description })),
+            skills: skills.map((s) => ({ id: s.id, name: s.name, level: s.level, category: s.category })),
+            projects: projects.map((p) => ({ id: p.id, name: p.name, description: p.description, link: p.link, tech: p.tech })),
+          },
+          currentIncluded: {
+            workIds: workInc.map((x) => x.workExperienceId),
+            educationIds: eduInc.map((x) => x.educationId),
+            skillIds: skillInc.map((x) => x.skillId),
+            projectIds: projInc.map((x) => x.projectId),
+          },
+        };
+
+        const client = await getOpenAiClient({
+          keyCiphertext: openaiKey.keyCiphertext,
+          keyIv: openaiKey.keyIv,
+          keyTag: openaiKey.keyTag,
+        });
+
+        // Structured output + server validation (retry once if invalid)
+        let parsed: any;
+        try {
+          parsed = await generateCvSuggestion(client, cvSuggestSystemPrompt, JSON.stringify(inputPayload), cvSuggestResponseJsonSchema);
+          parsed = cvSuggestResponseZodSchema.parse(parsed);
+        } catch (firstErr: any) {
+          parsed = await generateCvSuggestion(
+            client,
+            cvSuggestSystemPrompt + '\n\nIMPORTANT: Output MUST match schema exactly. No extra keys.',
+            JSON.stringify(inputPayload),
+            cvSuggestResponseJsonSchema
+          );
+          parsed = cvSuggestResponseZodSchema.parse(parsed);
+        }
+
+        // Also validate caps/dupes via our API schema (adds defaults)
+        const suggestion = aiCvSuggestionSchema.parse(parsed);
+
+        return ok(reply, { suggestion });
+      } catch (error: any) {
+        if (error.name === 'ZodError') {
+          return fail(reply, 400, 'Invalid request', 'ValidationError');
+        }
+        return fail(reply, 500, 'Failed to generate suggestions. Please try again.', 'AiServiceError');
+      }
+    },
+  });
+
+  // CV Apply endpoint: apply suggestion atomically (summary + inclusions)
+  fastify.post('/ai/cv/apply', {
+    onRequest: [fastify.authenticate],
+    handler: async (request, reply) => {
+      const userId = request.user.userId;
+      try {
+        const body = applyCvSuggestionSchema.parse(request.body);
+
+        const cv = await fastify.prisma.cvDocument.findFirst({
+          where: { id: body.cvId, userId },
+          select: { id: true, canvasState: true },
+        });
+        if (!cv) {
+          return fail(reply, 404, 'CV not found', 'NotFound');
+        }
+
+        const suggestion = aiCvSuggestionSchema.parse(body.suggestion);
+        const replace = body.replaceSelection ?? true;
+
+        // Ownership checks: all IDs must belong to user
+        const [workCount, projCount, skillCount, eduCount] = await Promise.all([
+          fastify.prisma.userWorkExperience.count({ where: { userId, id: { in: suggestion.selections.workIds } } }),
+          fastify.prisma.userProject.count({ where: { userId, id: { in: suggestion.selections.projectIds } } }),
+          fastify.prisma.userSkill.count({ where: { userId, id: { in: suggestion.selections.skillIds } } }),
+          fastify.prisma.userEducation.count({ where: { userId, id: { in: suggestion.selections.educationIds } } }),
+        ]);
+        if (workCount !== suggestion.selections.workIds.length ||
+            projCount !== suggestion.selections.projectIds.length ||
+            skillCount !== suggestion.selections.skillIds.length ||
+            eduCount !== suggestion.selections.educationIds.length) {
+          return fail(reply, 400, 'One or more suggested IDs are invalid or not owned by user.', 'BadRequest');
+        }
+
+        await fastify.prisma.$transaction(async (tx) => {
+          // Update summary: always store overrideSummary. If canvasState exists, also update SUMMARY block.
+          let nextCanvasState: any = cv.canvasState;
+          if (nextCanvasState && typeof nextCanvasState === 'object' && Array.isArray((nextCanvasState as any).blocks)) {
+            nextCanvasState = {
+              ...(nextCanvasState as any),
+              blocks: (nextCanvasState as any).blocks.map((b: any) =>
+                b?.type === 'SUMMARY' || b?.id === 'summary'
+                  ? { ...b, content: { ...(b.content || {}), text: suggestion.summary } }
+                  : b
+              ),
+            };
+          }
+
+          await tx.cvDocument.update({
+            where: { id: body.cvId },
+            data: {
+              overrideSummary: suggestion.summary.trim(),
+              canvasState: nextCanvasState ?? undefined,
+            },
+          });
+
+          // Inclusions
+          if (replace) {
+            await Promise.all([
+              tx.cvWorkInclusion.deleteMany({ where: { cvId: body.cvId } }),
+              tx.cvProjectInclusion.deleteMany({ where: { cvId: body.cvId } }),
+              tx.cvSkillInclusion.deleteMany({ where: { cvId: body.cvId } }),
+              tx.cvEducationInclusion.deleteMany({ where: { cvId: body.cvId } }),
+            ]);
+          }
+
+          // Add/update with order from arrays
+          await Promise.all([
+            Promise.all(
+              suggestion.selections.workIds.map((id, order) =>
+                tx.cvWorkInclusion.upsert({
+                  where: { cvId_workExperienceId: { cvId: body.cvId, workExperienceId: id } } as any,
+                  create: { cvId: body.cvId, workExperienceId: id, order },
+                  update: { order },
+                })
+              )
+            ),
+            Promise.all(
+              suggestion.selections.projectIds.map((id, order) =>
+                tx.cvProjectInclusion.upsert({
+                  where: { cvId_projectId: { cvId: body.cvId, projectId: id } } as any,
+                  create: { cvId: body.cvId, projectId: id, order },
+                  update: { order },
+                })
+              )
+            ),
+            Promise.all(
+              suggestion.selections.skillIds.map((id, order) =>
+                tx.cvSkillInclusion.upsert({
+                  where: { cvId_skillId: { cvId: body.cvId, skillId: id } } as any,
+                  create: { cvId: body.cvId, skillId: id, order },
+                  update: { order },
+                })
+              )
+            ),
+            Promise.all(
+              suggestion.selections.educationIds.map((id, order) =>
+                tx.cvEducationInclusion.upsert({
+                  where: { cvId_educationId: { cvId: body.cvId, educationId: id } } as any,
+                  create: { cvId: body.cvId, educationId: id, order },
+                  update: { order },
+                })
+              )
+            ),
+          ]);
+        });
+
+        return ok(reply, { ok: true });
+      } catch (error: any) {
+        if (error.name === 'ZodError') {
+          return fail(reply, 400, 'Invalid request', 'ValidationError');
+        }
+        return fail(reply, 500, 'Failed to apply suggestions', 'InternalServerError');
+      }
+    },
+  });
+
   // Optimize CV summary using AI
   fastify.post('/ai/cv/optimize', {
     onRequest: [fastify.authenticate],
@@ -39,11 +278,7 @@ const aiRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!cv) {
-          return reply.code(404).send({
-            statusCode: 404,
-            error: 'Not Found',
-            message: 'CV document not found',
-          });
+          return fail(reply, 404, 'CV document not found', 'NotFound');
         }
 
         // Check if user has OpenAI key
@@ -52,12 +287,12 @@ const aiRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!openaiKey) {
-          return reply.code(400).send({
-            statusCode: 400,
-            error: 'Bad Request',
-            code: 'OPENAI_KEY_NOT_SET',
-            message: 'No OpenAI API key saved. Add it in Settings → API Settings.',
-          });
+          return fail(
+            reply,
+            400,
+            'No OpenAI API key saved. Add it in Settings → API Settings.',
+            'OpenAiKeyNotSet'
+          );
         }
 
         // Load user profile
@@ -78,11 +313,7 @@ const aiRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!profile) {
-          return reply.code(404).send({
-            statusCode: 404,
-            error: 'Not Found',
-            message: 'User profile not found',
-          });
+          return fail(reply, 404, 'User profile not found', 'NotFound');
         }
 
         // Load included CV items (ordered)
@@ -223,13 +454,16 @@ const aiRoutes: FastifyPluginAsync = async (fastify) => {
           success: true,
         }, 'CV summary generated successfully');
 
-        return reply.send({
-          message: 'AI summary generated',
-          cvId,
-          summary: result.summary,
-          keySkills: result.keySkills,
-          roleFitBullets: result.roleFitBullets,
-        });
+        return ok(
+          reply,
+          {
+            cvId,
+            summary: result.summary,
+            keySkills: result.keySkills,
+            roleFitBullets: result.roleFitBullets,
+          },
+          'AI summary generated'
+        );
       } catch (error: any) {
         const duration = Date.now() - startTime;
 
@@ -241,44 +475,34 @@ const aiRoutes: FastifyPluginAsync = async (fastify) => {
         }, 'CV summary generation failed');
 
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            statusCode: 400,
-            error: 'Validation Error',
-            message: error.errors.map((e: any) => e.message).join(', '),
-          });
+          return fail(reply, 400, 'Invalid request', 'ValidationError');
         }
 
         if (error.message?.includes('Decryption failed')) {
-          return reply.code(500).send({
-            statusCode: 500,
-            error: 'Encryption Error',
-            message: 'Failed to decrypt API key. Please update your API key in Settings.',
-          });
+          return fail(
+            reply,
+            500,
+            'Failed to decrypt API key. Please update your API key in Settings.',
+            'EncryptionError'
+          );
         }
 
         if (error.message?.includes('No content in OpenAI response')) {
-          return reply.code(500).send({
-            statusCode: 500,
-            error: 'AI Service Error',
-            message: 'OpenAI returned an empty response. Please try again.',
-          });
+          return fail(reply, 500, 'OpenAI returned an empty response. Please try again.', 'AiServiceError');
         }
 
         // OpenAI API errors
         if (error.status || error.response) {
-          return reply.code(500).send({
-            statusCode: 500,
-            error: 'AI Service Error',
-            message: 'Failed to generate summary. Please check your API key and try again.',
-          });
+          return fail(
+            reply,
+            500,
+            'Failed to generate summary. Please check your API key and try again.',
+            'AiServiceError'
+          );
         }
 
         fastify.log.error(error);
-        return reply.code(500).send({
-          statusCode: 500,
-          error: 'Internal Server Error',
-          message: 'Failed to generate CV summary',
-        });
+        return fail(reply, 500, 'Failed to generate CV summary', 'InternalServerError');
       }
     },
   });
@@ -300,12 +524,12 @@ const aiRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!openaiKey) {
-          return reply.code(400).send({
-            statusCode: 400,
-            error: 'Bad Request',
-            code: 'OPENAI_KEY_NOT_SET',
-            message: 'No OpenAI API key saved. Add it in Settings → API Settings.',
-          });
+          return fail(
+            reply,
+            400,
+            'No OpenAI API key saved. Add it in Settings → API Settings.',
+            'OpenAiKeyNotSet'
+          );
         }
 
         // Load user context data
@@ -367,11 +591,7 @@ const aiRoutes: FastifyPluginAsync = async (fastify) => {
           ]);
 
         if (!profile) {
-          return reply.code(404).send({
-            statusCode: 404,
-            error: 'Not Found',
-            message: 'User profile not found',
-          });
+          return fail(reply, 404, 'User profile not found', 'NotFound');
         }
 
         // Build context message for AI
@@ -411,10 +631,7 @@ USER QUESTION: ${message}`;
           success: true,
         }, 'Chat message processed successfully');
 
-        return reply.send({
-          message: response,
-          conversationId: conversationId || null,
-        });
+        return ok(reply, { message: response, conversationId: conversationId || null });
       } catch (error: any) {
         const duration = Date.now() - startTime;
 
@@ -425,44 +642,34 @@ USER QUESTION: ${message}`;
         }, 'Chat message processing failed');
 
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            statusCode: 400,
-            error: 'Validation Error',
-            message: error.errors.map((e: any) => e.message).join(', '),
-          });
+          return fail(reply, 400, 'Invalid request', 'ValidationError');
         }
 
         if (error.message?.includes('Decryption failed')) {
-          return reply.code(500).send({
-            statusCode: 500,
-            error: 'Encryption Error',
-            message: 'Failed to decrypt API key. Please update your API key in Settings.',
-          });
+          return fail(
+            reply,
+            500,
+            'Failed to decrypt API key. Please update your API key in Settings.',
+            'EncryptionError'
+          );
         }
 
         if (error.message?.includes('No content in OpenAI response')) {
-          return reply.code(500).send({
-            statusCode: 500,
-            error: 'AI Service Error',
-            message: 'OpenAI returned an empty response. Please try again.',
-          });
+          return fail(reply, 500, 'OpenAI returned an empty response. Please try again.', 'AiServiceError');
         }
 
         // OpenAI API errors
         if (error.status || error.response) {
-          return reply.code(500).send({
-            statusCode: 500,
-            error: 'AI Service Error',
-            message: 'Failed to process message. Please check your API key and try again.',
-          });
+          return fail(
+            reply,
+            500,
+            'Failed to process message. Please check your API key and try again.',
+            'AiServiceError'
+          );
         }
 
         fastify.log.error(error);
-        return reply.code(500).send({
-          statusCode: 500,
-          error: 'Internal Server Error',
-          message: 'Failed to process chat message',
-        });
+        return fail(reply, 500, 'Failed to process chat message', 'InternalServerError');
       }
     },
   });

@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element */
+
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
@@ -18,6 +20,7 @@ import {
   Info,
   Sparkles,
   Loader2,
+  Printer,
 } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Textarea } from "@/components/ui/Textarea";
@@ -29,7 +32,11 @@ import type {
   UserSkill,
   UserProject,
   UserProfile,
+  CvCanvasState,
+  AiCvSuggestion,
 } from "@/lib/types";
+import { CvCanvasEditor } from "@/components/cv/CvCanvasEditor";
+import { syncCanvasStateWithCvData } from "@/components/cv/syncCanvasStateWithCvData";
 
 export default function CVEditorPage() {
   const router = useRouter();
@@ -47,7 +54,9 @@ export default function CVEditorPage() {
   const [checkingKey, setCheckingKey] = useState(false);
   const [jobPostingText, setJobPostingText] = useState('');
   const [generating, setGenerating] = useState(false);
-  const [aiResult, setAiResult] = useState<{ keySkills: string[]; roleFitBullets: string[] } | null>(null);
+  const [aiSuggestion, setAiSuggestion] = useState<AiCvSuggestion | null>(null);
+  const [replaceSelection, setReplaceSelection] = useState(true);
+  const [applying, setApplying] = useState(false);
 
   // Library data (all available items)
   const [allWork, setAllWork] = useState<UserWorkExperience[]>([]);
@@ -74,8 +83,10 @@ export default function CVEditorPage() {
           api.listSkills(),
           api.listProjects(),
         ]);
-        
-        setCv(cvData);
+
+        // Keep preview in sync even if saved canvasState text is stale.
+        const syncedCanvasState = syncCanvasStateWithCvData(cvData.canvasState ?? null, cvData, profileData);
+        setCv({ ...cvData, canvasState: syncedCanvasState });
         setProfile(profileData);
         setAllWork(workData);
         setAllEducation(eduData);
@@ -98,10 +109,26 @@ export default function CVEditorPage() {
     fetchData();
   }, [cvId, router]);
 
-  const refreshCv = async () => {
+  const refreshCv = async (opts?: { persistCanvasSync?: boolean }) => {
     try {
       const cvData = await api.getCv(cvId);
-      setCv(cvData);
+      if (profile) {
+        const syncedCanvasState = syncCanvasStateWithCvData(cvData.canvasState ?? null, cvData, profile);
+
+        // Only persist when requested (e.g. after toggles / AI apply) and only if text changed.
+        const persistCanvasSync = !!opts?.persistCanvasSync;
+        if (persistCanvasSync && !canvasTextEqual(cvData.canvasState ?? null, syncedCanvasState)) {
+          try {
+            await api.updateCv(cvId, { canvasState: syncedCanvasState });
+          } catch {
+            // Non-fatal: preview will still be correct; user can still save layout later.
+          }
+        }
+
+        setCv({ ...cvData, canvasState: syncedCanvasState });
+      } else {
+        setCv(cvData);
+      }
       setIncludedWorkIds(new Set(cvData.workExperiences?.map(w => w.id) || []));
       setIncludedEducationIds(new Set(cvData.educations?.map(e => e.id) || []));
       setIncludedSkillIds(new Set(cvData.skills?.map(s => s.id) || []));
@@ -125,8 +152,12 @@ export default function CVEditorPage() {
     }
   };
 
-  // Generate AI summary
+  // Generate AI suggestion (summary + selections). Does NOT modify CV until Apply.
   const handleGenerateSummary = async () => {
+    if (!cv || !profile) {
+      toast.error("CV data not loaded yet");
+      return;
+    }
     if (!jobPostingText.trim() || jobPostingText.trim().length < 50) {
       toast.error('Please paste a job posting (at least 50 characters)');
       return;
@@ -134,21 +165,12 @@ export default function CVEditorPage() {
 
     try {
       setGenerating(true);
-      const result = await api.optimizeCvSummary(cvId, jobPostingText.trim());
-      
-      // Update CV with new summary
-      await refreshCv();
-      
-      // Store AI insights
-      setAiResult({
-        keySkills: result.keySkills,
-        roleFitBullets: result.roleFitBullets,
-      });
-      
-      toast.success('Summary updated for this role');
+      const suggestion = await api.aiSuggestCv(cvId, jobPostingText.trim());
+      setAiSuggestion(suggestion);
+      toast.success('AI suggestions ready. Review and apply when you’re happy.');
     } catch (error: any) {
       const errorData = error.errorData || error;
-      if (errorData?.code === 'OPENAI_KEY_NOT_SET' || errorData?.error === 'Bad Request') {
+      if (errorData?.error === 'OpenAiKeyNotSet') {
         toast.error('No OpenAI API key saved. Add it in Settings → API Settings.');
         setShowAiDrawer(false);
         router.push('/settings?tab=api');
@@ -157,6 +179,34 @@ export default function CVEditorPage() {
       }
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleApplyAiSuggestion = async () => {
+    if (!aiSuggestion) return;
+    try {
+      setApplying(true);
+      await api.aiApplyCvSuggestion(cvId, aiSuggestion, replaceSelection);
+      toast.success("Applied AI suggestions to CV");
+      await refreshCv({ persistCanvasSync: true });
+      setShowAiDrawer(false);
+      setJobPostingText("");
+      setAiSuggestion(null);
+    } catch (error: any) {
+      const errorData = error.errorData || error;
+      toast.error(errorData?.message || error.message || "Failed to apply suggestions");
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  const handleSaveCanvas = async (state: CvCanvasState) => {
+    try {
+      await api.updateCv(cvId, { canvasState: state });
+      setCv((prev) => (prev ? { ...prev, canvasState: state } : prev));
+      toast.success("Layout saved");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to save layout");
     }
   };
 
@@ -182,7 +232,7 @@ export default function CVEditorPage() {
         await api.addWorkToCv(cvId, { itemId: workId });
         toast.success('Work experience added to CV');
       }
-      refreshCv();
+      await refreshCv({ persistCanvasSync: true });
     } catch (error: any) {
       toast.error(error.message || 'Failed to update CV');
     }
@@ -198,7 +248,7 @@ export default function CVEditorPage() {
         await api.addEducationToCv(cvId, { itemId: eduId });
         toast.success('Education added to CV');
       }
-      refreshCv();
+      await refreshCv({ persistCanvasSync: true });
     } catch (error: any) {
       toast.error(error.message || 'Failed to update CV');
     }
@@ -214,7 +264,7 @@ export default function CVEditorPage() {
         await api.addSkillToCv(cvId, { itemId: skillId });
         toast.success('Skill added to CV');
       }
-      refreshCv();
+      await refreshCv({ persistCanvasSync: true });
     } catch (error: any) {
       toast.error(error.message || 'Failed to update CV');
     }
@@ -230,7 +280,7 @@ export default function CVEditorPage() {
         await api.addProjectToCv(cvId, { itemId: projectId });
         toast.success('Project added to CV');
       }
-      refreshCv();
+      await refreshCv({ persistCanvasSync: true });
     } catch (error: any) {
       toast.error(error.message || 'Failed to update CV');
     }
@@ -267,14 +317,36 @@ export default function CVEditorPage() {
               <p className="text-sm text-gray-600">Template: {cv.template}</p>
             </div>
           </div>
-          <Button variant={cv.isDefault ? "secondary" : "ghost"} onClick={toggleDefault}>
-            <Star className={`w-4 h-4 mr-2 ${cv.isDefault ? 'fill-current' : ''}`} />
-            {cv.isDefault ? 'Default CV' : 'Set as Default'}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => {
+                setShowAiDrawer(true);
+                checkOpenAiKey();
+              }}
+              className="bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              Generate using AI
+            </Button>
+
+            <Button
+              variant="secondary"
+              onClick={() => window.open(`/cv/${cvId}/print`, "_blank")}
+            >
+              <Printer className="w-4 h-4 mr-2" />
+              Print / Save as PDF
+            </Button>
+
+            <Button variant={cv.isDefault ? "secondary" : "ghost"} onClick={toggleDefault}>
+              <Star className={`w-4 h-4 mr-2 ${cv.isDefault ? 'fill-current' : ''}`} />
+              {cv.isDefault ? 'Default CV' : 'Set as Default'}
+            </Button>
+          </div>
         </div>
 
         {/* Split View */}
-        <div className="grid lg:grid-cols-2 gap-6">
+        {/* Make preview column A4-width so preview matches PDF */}
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_820px] gap-6">
           {/* Selection Side */}
           <div className="space-y-6">
             <Card className="p-6">
@@ -548,20 +620,13 @@ export default function CVEditorPage() {
           </div>
 
           {/* Preview Side */}
-          <div className="lg:sticky lg:top-6 lg:h-fit space-y-4">
-            <div className="flex justify-end">
-              <Button
-                onClick={() => {
-                  setShowAiDrawer(true);
-                  checkOpenAiKey();
-                }}
-                className="bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
-              >
-                <Sparkles className="w-4 h-4 mr-2" />
-                Generate using AI
-              </Button>
-            </div>
-            <CVPreview cv={cv} profile={profile} />
+          <div className="lg:sticky lg:top-6 lg:h-fit">
+            <CvCanvasEditor
+              cv={cv}
+              profile={profile}
+              initialCanvasState={cv.canvasState ?? null}
+              onSave={handleSaveCanvas}
+            />
           </div>
         </div>
       </div>
@@ -572,7 +637,7 @@ export default function CVEditorPage() {
         onClose={() => {
           setShowAiDrawer(false);
           setJobPostingText('');
-          setAiResult(null);
+          setAiSuggestion(null);
         }}
         title="Generate a tailored Professional Summary"
         size="lg"
@@ -613,49 +678,72 @@ export default function CVEditorPage() {
                   onChange={(e) => setJobPostingText(e.target.value)}
                   placeholder="Copy and paste the full job description..."
                   rows={8}
-                  disabled={generating}
+                  disabled={generating || applying}
                   className="font-mono text-sm"
                 />
                 <p className="text-xs text-muted-foreground mt-2">
-                  We'll tailor the summary using your selected CV items and library.
+                  We&apos;ll tailor the summary using your selected CV items and library.
                 </p>
               </div>
 
-              {aiResult && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-                  <h3 className="font-semibold text-blue-900">AI Insights</h3>
-                  {aiResult.keySkills.length > 0 && (
-                    <div>
-                      <p className="text-xs font-medium text-blue-800 mb-2">Key Skills:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {aiResult.keySkills.map((skill, i) => (
-                          <span
-                            key={i}
-                            className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded"
-                          >
-                            {skill}
-                          </span>
-                        ))}
-                      </div>
+              {aiSuggestion && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-4">
+                  <div>
+                    <h3 className="font-semibold text-blue-900 mb-2">Suggested Summary</h3>
+                    <div className="bg-white border border-blue-200 rounded p-3 text-sm text-gray-900 whitespace-pre-wrap">
+                      {aiSuggestion.summary}
                     </div>
-                  )}
-                  {aiResult.roleFitBullets.length > 0 && (
-                    <div>
-                      <p className="text-xs font-medium text-blue-800 mb-2">Role Fit:</p>
-                      <ul className="text-xs text-blue-700 space-y-1 list-disc list-inside">
-                        {aiResult.roleFitBullets.map((bullet, i) => (
-                          <li key={i}>{bullet}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-semibold text-blue-900">Suggested inclusions</div>
+                    <label className="flex items-center gap-2 text-xs text-blue-800">
+                      <input
+                        type="checkbox"
+                        checked={replaceSelection}
+                        onChange={(e) => setReplaceSelection(e.target.checked)}
+                      />
+                      Replace selection
+                    </label>
+                  </div>
+
+                  <div className="space-y-3">
+                    <AiSuggestionGroup
+                      title={`Work (${aiSuggestion.selections.workIds.length})`}
+                      items={aiSuggestion.selections.workIds
+                        .map((id) => allWork.find((w) => w.id === id))
+                        .filter(Boolean)
+                        .map((w: any) => `${w.role} — ${w.company}`)}
+                    />
+                    <AiSuggestionGroup
+                      title={`Projects (${aiSuggestion.selections.projectIds.length})`}
+                      items={aiSuggestion.selections.projectIds
+                        .map((id) => allProjects.find((p) => p.id === id))
+                        .filter(Boolean)
+                        .map((p: any) => p.name)}
+                    />
+                    <AiSuggestionGroup
+                      title={`Skills (${aiSuggestion.selections.skillIds.length})`}
+                      items={aiSuggestion.selections.skillIds
+                        .map((id) => allSkills.find((s) => s.id === id))
+                        .filter(Boolean)
+                        .map((s: any) => (s.category ? `${s.category}: ${s.name}` : s.name))}
+                    />
+                    <AiSuggestionGroup
+                      title={`Education (${aiSuggestion.selections.educationIds.length})`}
+                      items={aiSuggestion.selections.educationIds
+                        .map((id) => allEducation.find((e) => e.id === id))
+                        .filter(Boolean)
+                        .map((e: any) => (e.degree ? `${e.school} — ${e.degree}` : e.school))}
+                    />
+                  </div>
                 </div>
               )}
 
               <div className="flex gap-3">
                 <Button
                   onClick={handleGenerateSummary}
-                  disabled={generating || !jobPostingText.trim() || jobPostingText.trim().length < 50}
+                  disabled={generating || applying || !jobPostingText.trim() || jobPostingText.trim().length < 50}
                   className="flex-1 bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
                 >
                   {generating ? (
@@ -670,14 +758,23 @@ export default function CVEditorPage() {
                     </>
                   )}
                 </Button>
+
+                <Button
+                  onClick={handleApplyAiSuggestion}
+                  disabled={!aiSuggestion || generating || applying}
+                  className="flex-1"
+                >
+                  {applying ? "Applying..." : "Apply"}
+                </Button>
+
                 <Button
                   variant="secondary"
                   onClick={() => {
                     setShowAiDrawer(false);
                     setJobPostingText('');
-                    setAiResult(null);
+                    setAiSuggestion(null);
                   }}
-                  disabled={generating}
+                  disabled={generating || applying}
                 >
                   Cancel
                 </Button>
@@ -687,6 +784,31 @@ export default function CVEditorPage() {
         </div>
       </Modal>
     </>
+  );
+}
+
+function canvasTextEqual(a: CvCanvasState | null, b: CvCanvasState | null) {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  const types = ["HEADER", "SUMMARY", "WORK", "PROJECTS", "SKILLS", "EDUCATION"] as const;
+  const get = (s: CvCanvasState, type: (typeof types)[number]) =>
+    (s.blocks.find((blk) => blk.type === type)?.content.text ?? "").replace(/\r\n/g, "\n").trimEnd();
+  return types.every((t) => get(a, t) === get(b, t));
+}
+
+function AiSuggestionGroup({ title, items }: { title: string; items: string[] }) {
+  if (!items.length) return null;
+  return (
+    <div>
+      <div className="text-xs font-semibold text-blue-900 mb-1">{title}</div>
+      <div className="space-y-1">
+        {items.map((t, i) => (
+          <div key={i} className="text-xs bg-white border border-blue-200 rounded px-2 py-1 text-gray-900">
+            {t}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

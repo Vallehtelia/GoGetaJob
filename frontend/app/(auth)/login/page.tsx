@@ -49,7 +49,7 @@ export default function LoginPage() {
         {/* Logo/Brand */}
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-pink-500 to-blue-500 bg-clip-text text-transparent">
-            GoGetaJob
+            GoGet-a-Job
           </h1>
           <p className="text-muted-foreground">Track your job applications with ease</p>
         </div>

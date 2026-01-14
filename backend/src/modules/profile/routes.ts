@@ -6,6 +6,7 @@ import { pipeline } from 'stream/promises';
 import { createWriteStream } from 'fs';
 import { randomUUID } from 'crypto';
 import path from 'path';
+import { ok, fail } from '../../utils/httpResponse.js';
 
 export default async function profileRoutes(fastify: FastifyInstance) {
   // Get current user's profile
@@ -36,13 +37,10 @@ export default async function profileRoutes(fastify: FastifyInstance) {
         });
 
         if (!user) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'User not found',
-          });
+          return fail(reply, 404, 'User not found', 'NotFound');
         }
 
-        return reply.send({ profile: user });
+        return ok(reply, user);
       } catch (error: any) {
         fastify.log.error(error);
         throw error;
@@ -80,14 +78,10 @@ export default async function profileRoutes(fastify: FastifyInstance) {
           },
         });
 
-        return reply.send({ profile: updatedUser });
+        return ok(reply, updatedUser, 'Profile updated successfully');
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid input data',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid input data', 'ValidationError');
         }
         fastify.log.error(error);
         throw error;
@@ -106,21 +100,18 @@ export default async function profileRoutes(fastify: FastifyInstance) {
         const data = await request.file();
         
         if (!data) {
-          return reply.code(400).send({
-            statusCode: 400,
-            error: 'Bad Request',
-            message: 'No file uploaded',
-          });
+          return fail(reply, 400, 'No file uploaded', 'BadRequest');
         }
 
         // Validate file type
         const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
         if (!allowedMimeTypes.includes(data.mimetype)) {
-          return reply.code(400).send({
-            statusCode: 400,
-            error: 'Bad Request',
-            message: 'Invalid file type. Only JPEG, PNG, and WebP images are allowed.',
-          });
+          return fail(
+            reply,
+            400,
+            'Invalid file type. Only JPEG, PNG, and WebP images are allowed.',
+            'BadRequest'
+          );
         }
 
         // Generate unique filename
@@ -155,17 +146,10 @@ export default async function profileRoutes(fastify: FastifyInstance) {
           },
         });
 
-        return reply.send({
-          message: 'Profile picture uploaded successfully',
-          profile: updatedUser,
-        });
+        return ok(reply, updatedUser, 'Profile picture uploaded successfully');
       } catch (error: any) {
         fastify.log.error(error);
-        return reply.code(500).send({
-          statusCode: 500,
-          error: 'Internal Server Error',
-          message: 'Failed to upload profile picture',
-        });
+        return fail(reply, 500, 'Failed to upload profile picture', 'InternalServerError');
       }
     },
   });
@@ -199,17 +183,10 @@ export default async function profileRoutes(fastify: FastifyInstance) {
           },
         });
 
-        return reply.send({
-          message: 'Profile picture deleted successfully',
-          profile: updatedUser,
-        });
+        return ok(reply, updatedUser, 'Profile picture deleted successfully');
       } catch (error: any) {
         fastify.log.error(error);
-        return reply.code(500).send({
-          statusCode: 500,
-          error: 'Internal Server Error',
-          message: 'Failed to delete profile picture',
-        });
+        return fail(reply, 500, 'Failed to delete profile picture', 'InternalServerError');
       }
     },
   });

@@ -6,6 +6,7 @@ import {
   listApplicationsQuerySchema,
 } from './schemas.js';
 import { Prisma } from '@prisma/client';
+import { ok, created, noContent, fail } from '../../utils/httpResponse.js';
 
 const applicationsRoutes: FastifyPluginAsync = async (fastify) => {
   // Create application
@@ -29,17 +30,10 @@ const applicationsRoutes: FastifyPluginAsync = async (fastify) => {
           },
         });
 
-        return reply.code(201).send({
-          message: 'Application created successfully',
-          application,
-        });
+        return created(reply, application, 'Application created successfully');
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid input data',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid input data', 'ValidationError');
         }
         throw error;
       }
@@ -94,7 +88,7 @@ const applicationsRoutes: FastifyPluginAsync = async (fastify) => {
           fastify.prisma.jobApplication.count({ where }),
         ]);
 
-        return reply.send({
+        return ok(reply, {
           data: applications,
           pagination: {
             page: query.page,
@@ -105,11 +99,7 @@ const applicationsRoutes: FastifyPluginAsync = async (fastify) => {
         });
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid query parameters',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid query parameters', 'ValidationError');
         }
         throw error;
       }
@@ -132,20 +122,13 @@ const applicationsRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!application) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'Application not found',
-          });
+          return fail(reply, 404, 'Application not found', 'NotFound');
         }
 
-        return reply.send(application);
+        return ok(reply, application);
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid application ID',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid application ID', 'ValidationError');
         }
         throw error;
       }
@@ -170,10 +153,7 @@ const applicationsRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!existing) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'Application not found',
-          });
+          return fail(reply, 404, 'Application not found', 'NotFound');
         }
 
         // Prepare update data
@@ -195,17 +175,10 @@ const applicationsRoutes: FastifyPluginAsync = async (fastify) => {
           data: updateData,
         });
 
-        return reply.send({
-          message: 'Application updated successfully',
-          application,
-        });
+        return ok(reply, application, 'Application updated successfully');
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid input data',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid input data', 'ValidationError');
         }
         throw error;
       }
@@ -229,26 +202,17 @@ const applicationsRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!existing) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'Application not found',
-          });
+          return fail(reply, 404, 'Application not found', 'NotFound');
         }
 
         await fastify.prisma.jobApplication.delete({
           where: { id: params.id },
         });
 
-        return reply.code(200).send({
-          message: 'Application deleted successfully',
-        });
+        return noContent(reply);
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid application ID',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid application ID', 'ValidationError');
         }
         throw error;
       }

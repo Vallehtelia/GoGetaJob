@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { toast } from "@/components/Toast";
 import { api } from "@/lib/api";
+import { getAccessToken } from "@/lib/auth";
 import {
   MessageCircle,
   X,
@@ -17,7 +18,6 @@ interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
-  timestamp: Date;
 }
 
 export function Chatbot() {
@@ -27,7 +27,6 @@ export function Chatbot() {
       id: "1",
       role: "assistant",
       content: "Hi! I'm your AI assistant. I can help you with writing summaries, cover letters, tailoring your CV, and more. What would you like help with?",
-      timestamp: new Date(),
     },
   ]);
   const [input, setInput] = useState("");
@@ -38,7 +37,12 @@ export function Chatbot() {
 
   // Check OpenAI key status on mount
   useEffect(() => {
-    checkOpenAiKey();
+    // Only check when authenticated; prevents redirect loops on auth pages.
+    if (getAccessToken()) {
+      checkOpenAiKey();
+    } else {
+      setHasOpenAiKey(null);
+    }
   }, []);
 
   // Auto-scroll to bottom when new messages arrive
@@ -75,7 +79,6 @@ export function Chatbot() {
       id: Date.now().toString(),
       role: "user",
       content: input.trim(),
-      timestamp: new Date(),
     };
 
     setMessages((prev) => [...prev, userMessage]);
@@ -89,14 +92,13 @@ export function Chatbot() {
         id: (Date.now() + 1).toString(),
         role: "assistant",
         content: response.message,
-        timestamp: new Date(),
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (error: any) {
       const errorData = error.errorData || error;
       
-      if (errorData?.code === "OPENAI_KEY_NOT_SET") {
+      if (errorData?.error === "OpenAiKeyNotSet") {
         toast.error("No OpenAI API key saved. Add it in Settings → API Settings.");
         setHasOpenAiKey(false);
       } else {

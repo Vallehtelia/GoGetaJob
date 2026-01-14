@@ -99,3 +99,38 @@ export async function chatWithAi(
 
   return content;
 }
+
+/**
+ * Generate CV suggestions (summary + library ID selections) using Structured Outputs.
+ */
+export async function generateCvSuggestion(
+  client: OpenAI,
+  systemPrompt: string,
+  userMessage: string,
+  jsonSchema: unknown
+): Promise<unknown> {
+  const completion = await client.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userMessage },
+    ],
+    response_format: {
+      type: 'json_schema',
+      json_schema: {
+        name: 'cv_suggest_response',
+        strict: true,
+        schema: jsonSchema as any,
+      },
+    },
+    temperature: 0.3,
+    max_tokens: 900,
+  });
+
+  const content = completion.choices[0]?.message?.content;
+  if (!content) {
+    throw new Error('No content in OpenAI response');
+  }
+
+  return JSON.parse(content);
+}

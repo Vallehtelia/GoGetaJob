@@ -75,7 +75,10 @@ export const config = {
     },
   },
   cors: {
-    origins: env.GGJ_CORS_ORIGINS.split(',').map((o) => o.trim()),
+    origins: env.GGJ_CORS_ORIGINS
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean),
   },
 } as const;
 

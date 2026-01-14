@@ -1,14 +1,15 @@
 import { FastifyPluginAsync } from 'fastify';
-import { registerSchema, loginSchema, refreshTokenSchema } from './schemas.js';
+import { registerSchema, loginSchema, refreshTokenSchema, logoutSchema, changePasswordSchema } from './schemas.js';
 import { hashPassword, verifyPassword } from '../../utils/password.js';
-import { createTokens, verifyRefreshToken, revokeRefreshToken } from '../../utils/tokens.js';
+import { createTokens, verifyRefreshToken, revokeRefreshToken, revokeAllUserTokens, hashToken } from '../../utils/tokens.js';
+import { ok, created, fail, noContent } from '../../utils/httpResponse.js';
 
 const authRoutes: FastifyPluginAsync = async (fastify) => {
   // Register endpoint
   fastify.post('/auth/register', {
     config: {
       rateLimit: {
-        max: 5,
+        max: 20,
         timeWindow: '15 minutes',
       },
     },
@@ -23,10 +24,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (existingUser) {
-          return reply.code(409).send({
-            error: 'Conflict',
-            message: 'User with this email already exists',
-          });
+          return fail(reply, 409, 'User with this email already exists', 'Conflict');
         }
 
         // Hash password
@@ -48,19 +46,14 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         // Create tokens
         const { accessToken, refreshToken } = await createTokens(fastify, user.id);
 
-        return reply.code(201).send({
-          message: 'User registered successfully',
-          user,
-          accessToken,
-          refreshToken,
-        });
+        return created(
+          reply,
+          { user, accessToken, refreshToken },
+          'User registered successfully'
+        );
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid input data',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid input data', 'ValidationError');
         }
         throw error;
       }
@@ -71,7 +64,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/auth/login', {
     config: {
       rateLimit: {
-        max: 5,
+        max: 20,
         timeWindow: '15 minutes',
       },
     },
@@ -86,42 +79,35 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!user) {
-          return reply.code(401).send({
-            error: 'Unauthorized',
-            message: 'Invalid email or password',
-          });
+          return fail(reply, 401, 'Invalid email or password', 'Unauthorized');
         }
 
         // Verify password
         const isValidPassword = await verifyPassword(user.passwordHash, body.password);
 
         if (!isValidPassword) {
-          return reply.code(401).send({
-            error: 'Unauthorized',
-            message: 'Invalid email or password',
-          });
+          return fail(reply, 401, 'Invalid email or password', 'Unauthorized');
         }
 
         // Create tokens
         const { accessToken, refreshToken } = await createTokens(fastify, user.id);
 
-        return reply.send({
-          message: 'Login successful',
-          user: {
-            id: user.id,
-            email: user.email,
-            createdAt: user.createdAt,
+        return ok(
+          reply,
+          {
+            user: {
+              id: user.id,
+              email: user.email,
+              createdAt: user.createdAt,
+            },
+            accessToken,
+            refreshToken,
           },
-          accessToken,
-          refreshToken,
-        });
+          'Login successful'
+        );
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid input data',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid input data', 'ValidationError');
         }
         throw error;
       }
@@ -139,10 +125,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         const userId = await verifyRefreshToken(fastify, body.refreshToken);
 
         if (!userId) {
-          return reply.code(401).send({
-            error: 'Unauthorized',
-            message: 'Invalid or expired refresh token',
-          });
+          return fail(reply, 401, 'Invalid or expired refresh token', 'Unauthorized');
         }
 
         // Revoke old refresh token
@@ -151,18 +134,92 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         // Create new tokens
         const { accessToken, refreshToken } = await createTokens(fastify, userId);
 
-        return reply.send({
-          message: 'Token refreshed successfully',
-          accessToken,
-          refreshToken,
-        });
+        return ok(reply, { accessToken, refreshToken }, 'Token refreshed successfully');
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid input data',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid input data', 'ValidationError');
+        }
+        throw error;
+      }
+    },
+  });
+
+  // Logout endpoint (revoke a specific refresh token) - idempotent
+  fastify.post('/auth/logout', {
+    onRequest: [fastify.authenticate],
+    handler: async (request, reply) => {
+      try {
+        const userId = request.user.userId;
+        const body = logoutSchema.parse(request.body);
+
+        const tokenHash = hashToken(body.refreshToken);
+        await fastify.prisma.refreshToken.updateMany({
+          where: {
+            tokenHash,
+            userId,
+            revokedAt: null,
+          },
+          data: { revokedAt: new Date() },
+        });
+
+        return noContent(reply);
+      } catch (error: any) {
+        if (error.name === 'ZodError') {
+          return fail(reply, 400, 'Invalid input data', 'ValidationError');
+        }
+        throw error;
+      }
+    },
+  });
+
+  // Logout all endpoint (revoke all refresh tokens for user) - idempotent
+  fastify.post('/auth/logout-all', {
+    onRequest: [fastify.authenticate],
+    handler: async (request, reply) => {
+      const userId = request.user.userId;
+      await revokeAllUserTokens(fastify, userId);
+      return noContent(reply);
+    },
+  });
+
+  // Change password endpoint
+  fastify.post('/auth/change-password', {
+    onRequest: [fastify.authenticate],
+    handler: async (request, reply) => {
+      try {
+        const userId = request.user.userId;
+        const body = changePasswordSchema.parse(request.body);
+
+        if (body.currentPassword === body.newPassword) {
+          return fail(reply, 400, 'New password must be different from current password', 'BadRequest');
+        }
+
+        const user = await fastify.prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true, passwordHash: true },
+        });
+
+        if (!user) {
+          return fail(reply, 404, 'User not found', 'NotFound');
+        }
+
+        const isValid = await verifyPassword(user.passwordHash, body.currentPassword);
+        if (!isValid) {
+          return fail(reply, 401, 'Invalid current password', 'Unauthorized');
+        }
+
+        const nextHash = await hashPassword(body.newPassword);
+        await fastify.prisma.user.update({
+          where: { id: userId },
+          data: { passwordHash: nextHash },
+        });
+
+        await revokeAllUserTokens(fastify, userId);
+
+        return noContent(reply);
+      } catch (error: any) {
+        if (error.name === 'ZodError') {
+          return fail(reply, 400, 'Invalid input data', 'ValidationError');
         }
         throw error;
       }
@@ -186,13 +243,10 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       });
 
       if (!user) {
-        return reply.code(404).send({
-          error: 'Not Found',
-          message: 'User not found',
-        });
+        return fail(reply, 404, 'User not found', 'NotFound');
       }
 
-      return reply.send({ user });
+      return ok(reply, user);
     },
   });
 };

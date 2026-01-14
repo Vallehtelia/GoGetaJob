@@ -1,6 +1,7 @@
 import { FastifyPluginAsync } from 'fastify';
 import { setApiKeySchema } from './schemas.js';
 import { encryptString, decryptString, getLastChars } from '../../utils/crypto.js';
+import { ok, noContent, fail } from '../../utils/httpResponse.js';
 
 const openaiRoutes: FastifyPluginAsync = async (fastify) => {
   // Get OpenAI API key status (never returns full key)
@@ -15,11 +16,7 @@ const openaiRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!openaiKey) {
-          return reply.send({
-            hasKey: false,
-            last4: null,
-            updatedAt: null,
-          });
+          return ok(reply, { hasKey: false, last4: null, updatedAt: null });
         }
 
         // Decrypt to get last 4 characters
@@ -36,18 +33,10 @@ const openaiRoutes: FastifyPluginAsync = async (fastify) => {
           // Still return hasKey=true even if decryption fails
         }
 
-        return reply.send({
-          hasKey: true,
-          last4,
-          updatedAt: openaiKey.updatedAt.toISOString(),
-        });
+        return ok(reply, { hasKey: true, last4, updatedAt: openaiKey.updatedAt.toISOString() });
       } catch (error: any) {
         fastify.log.error(error);
-        return reply.code(500).send({
-          statusCode: 500,
-          error: 'Internal Server Error',
-          message: 'Failed to retrieve API key status',
-        });
+        return fail(reply, 500, 'Failed to retrieve API key status', 'InternalServerError');
       }
     },
   });
@@ -80,34 +69,23 @@ const openaiRoutes: FastifyPluginAsync = async (fastify) => {
           },
         });
 
-        return reply.send({
-          message: 'OpenAI API key saved successfully',
-          hasKey: true,
-          last4,
-        });
+        return ok(reply, { hasKey: true, last4 }, 'OpenAI API key saved successfully');
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            statusCode: 400,
-            error: 'Validation Error',
-            message: error.errors.map((e: any) => e.message).join(', '),
-          });
+          return fail(reply, 400, 'Invalid request', 'ValidationError');
         }
 
         if (error.message?.includes('Encryption failed')) {
-          return reply.code(500).send({
-            statusCode: 500,
-            error: 'Encryption Error',
-            message: 'Failed to encrypt API key. Check server configuration.',
-          });
+          return fail(
+            reply,
+            500,
+            'Failed to encrypt API key. Check server configuration.',
+            'EncryptionError'
+          );
         }
 
         fastify.log.error(error);
-        return reply.code(500).send({
-          statusCode: 500,
-          error: 'Internal Server Error',
-          message: 'Failed to save API key',
-        });
+        return fail(reply, 500, 'Failed to save API key', 'InternalServerError');
       }
     },
   });
@@ -124,24 +102,13 @@ const openaiRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (deleted.count === 0) {
-          return reply.code(404).send({
-            statusCode: 404,
-            error: 'Not Found',
-            message: 'No API key found to delete',
-          });
+          return fail(reply, 404, 'No API key found to delete', 'NotFound');
         }
 
-        return reply.send({
-          message: 'OpenAI API key deleted successfully',
-          hasKey: false,
-        });
+        return noContent(reply);
       } catch (error: any) {
         fastify.log.error(error);
-        return reply.code(500).send({
-          statusCode: 500,
-          error: 'Internal Server Error',
-          message: 'Failed to delete API key',
-        });
+        return fail(reply, 500, 'Failed to delete API key', 'InternalServerError');
       }
     },
   });

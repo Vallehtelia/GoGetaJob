@@ -1,5 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
 import { config } from '../../config/index.js';
+import { ok } from '../../utils/httpResponse.js';
 
 const healthRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/health', {
@@ -8,16 +9,23 @@ const healthRoutes: FastifyPluginAsync = async (fastify) => {
         200: {
           type: 'object',
           properties: {
-            ok: { type: 'boolean' },
-            app: { type: 'string' },
-            short: { type: 'string' },
-            timestamp: { type: 'string' },
+            data: {
+              type: 'object',
+              properties: {
+                ok: { type: 'boolean' },
+                app: { type: 'string' },
+                short: { type: 'string' },
+                timestamp: { type: 'string' },
+              },
+              required: ['ok', 'app', 'short', 'timestamp'],
+            },
           },
+          required: ['data'],
         },
       },
     },
     handler: async (_request, reply) => {
-      return reply.send({
+      return ok(reply, {
         ok: true,
         app: config.app.name,
         short: config.app.short,

@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element */
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -10,6 +12,7 @@ import { Modal } from "@/components/ui/Modal";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { toast } from "@/components/Toast";
 import { api } from "@/lib/api";
+import { logout } from "@/lib/auth";
 import type {
   UserProfile,
   UpdateProfileInput,
@@ -42,6 +45,17 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Change password
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
+
+  // Danger zone: delete account
+  const [deleteAccountText, setDeleteAccountText] = useState("");
+  const [showDeleteAccountDialog, setShowDeleteAccountDialog] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   // OpenAI state
   const [openaiStatus, setOpenaiStatus] = useState<{ hasKey: boolean; last4: string | null; updatedAt: string | null } | null>(null);
@@ -255,6 +269,56 @@ export default function SettingsPage() {
     return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
   };
 
+  const handleChangePassword = async () => {
+    if (!currentPassword || !newPassword) {
+      toast.error("Please fill out all password fields");
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      toast.error("New password and confirmation do not match");
+      return;
+    }
+
+    try {
+      setChangingPassword(true);
+      await api.changePassword(currentPassword, newPassword);
+      toast.success("Password changed. Please sign in again.");
+      logout();
+    } catch (error: any) {
+      const status = error?.statusCode ?? error?.errorData?.statusCode;
+      if (status === 401) {
+        toast.error("Invalid current password");
+      } else {
+        toast.error(error?.message || "Failed to change password");
+      }
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
+  const handleRequestDeleteAccount = () => {
+    if (deleteAccountText.trim().toUpperCase() !== "DELETE") {
+      toast.error('Type "DELETE" to enable account deletion');
+      return;
+    }
+    setShowDeleteAccountDialog(true);
+  };
+
+  const handleConfirmDeleteAccount = async () => {
+    setShowDeleteAccountDialog(false);
+    try {
+      setDeletingAccount(true);
+      await api.deleteAccount();
+      toast.success("Account deleted");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to delete account (logging out anyway)");
+    } finally {
+      setDeletingAccount(false);
+      // Best-effort cleanup: clear local session regardless
+      logout();
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -321,11 +385,12 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
           ) : profile ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Personal Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Personal Information</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
                 {/* Profile Picture */}
                 <div className="space-y-3">
                   <Label>Profile Picture</Label>
@@ -563,8 +628,119 @@ export default function SettingsPage() {
                     )}
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+
+              <Card className="mt-6">
+                <CardHeader>
+                  <CardTitle>Security</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor="currentPassword">Current password</Label>
+                      <Input
+                        id="currentPassword"
+                        type="password"
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        placeholder="••••••••"
+                        disabled={changingPassword}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="newPassword">New password</Label>
+                      <Input
+                        id="newPassword"
+                        type="password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="••••••••"
+                        disabled={changingPassword}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Must be at least 8 characters with uppercase, lowercase, and number.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="confirmNewPassword">Confirm new password</Label>
+                      <Input
+                        id="confirmNewPassword"
+                        type="password"
+                        value={confirmNewPassword}
+                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                        placeholder="••••••••"
+                        disabled={changingPassword}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <Button onClick={handleChangePassword} disabled={changingPassword}>
+                      {changingPassword ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Changing...
+                        </>
+                      ) : (
+                        "Change Password"
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="mt-6 border border-red-500/30">
+                <CardHeader>
+                  <CardTitle className="text-red-400">Danger Zone</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Deleting your account permanently removes your profile, applications, CVs, snapshots, and library data.
+                    This action cannot be undone.
+                  </p>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="deleteAccountConfirm">Type DELETE to confirm</Label>
+                    <Input
+                      id="deleteAccountConfirm"
+                      value={deleteAccountText}
+                      onChange={(e) => setDeleteAccountText(e.target.value)}
+                      placeholder="DELETE"
+                      disabled={deletingAccount}
+                    />
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button
+                      variant="danger"
+                      onClick={handleRequestDeleteAccount}
+                      disabled={deletingAccount || deleteAccountText.trim().toUpperCase() !== "DELETE"}
+                    >
+                      {deletingAccount ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Deleting...
+                        </>
+                      ) : (
+                        "Delete Account"
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <ConfirmDialog
+                isOpen={showDeleteAccountDialog}
+                title="Delete account?"
+                message='This will permanently delete your account and all associated data. This action cannot be undone.'
+                confirmLabel="Yes, delete my account"
+                cancelLabel="Cancel"
+                onCancel={() => setShowDeleteAccountDialog(false)}
+                onConfirm={handleConfirmDeleteAccount}
+                isDestructive
+              />
+            </>
           ) : null}
         </div>
       )}

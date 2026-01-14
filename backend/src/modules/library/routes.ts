@@ -13,6 +13,7 @@ import {
   updateProjectSchema,
   projectIdParamSchema,
 } from './schemas.js';
+import { ok, created, noContent, fail } from '../../utils/httpResponse.js';
 
 const libraryRoutes: FastifyPluginAsync = async (fastify) => {
   // ============ Work Experience Routes ============
@@ -28,7 +29,7 @@ const libraryRoutes: FastifyPluginAsync = async (fastify) => {
         orderBy: [{ startDate: 'desc' }],
       });
 
-      return reply.send({ data: experiences });
+      return ok(reply, experiences);
     },
   });
 
@@ -53,17 +54,10 @@ const libraryRoutes: FastifyPluginAsync = async (fastify) => {
           },
         });
 
-        return reply.code(201).send({
-          message: 'Work experience added successfully',
-          data: experience,
-        });
+        return created(reply, experience, 'Work experience added successfully');
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid input data',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid input data', 'ValidationError');
         }
         throw error;
       }
@@ -85,10 +79,7 @@ const libraryRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!existing) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'Work experience not found',
-          });
+          return fail(reply, 404, 'Work experience not found', 'NotFound');
         }
 
         // Prepare update data
@@ -106,17 +97,10 @@ const libraryRoutes: FastifyPluginAsync = async (fastify) => {
           data: updateData,
         });
 
-        return reply.send({
-          message: 'Work experience updated successfully',
-          data: updated,
-        });
+        return ok(reply, updated, 'Work experience updated successfully');
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid input data',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid input data', 'ValidationError');
         }
         throw error;
       }
@@ -137,26 +121,17 @@ const libraryRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!existing) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'Work experience not found',
-          });
+          return fail(reply, 404, 'Work experience not found', 'NotFound');
         }
 
         await fastify.prisma.userWorkExperience.delete({
           where: { id: params.id },
         });
 
-        return reply.code(200).send({
-          message: 'Work experience deleted successfully',
-        });
+        return noContent(reply);
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid ID',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid ID', 'ValidationError');
         }
         throw error;
       }
@@ -176,7 +151,7 @@ const libraryRoutes: FastifyPluginAsync = async (fastify) => {
         orderBy: [{ startDate: 'desc' }],
       });
 
-      return reply.send({ data: educations });
+      return ok(reply, educations);
     },
   });
 
@@ -200,17 +175,10 @@ const libraryRoutes: FastifyPluginAsync = async (fastify) => {
           },
         });
 
-        return reply.code(201).send({
-          message: 'Education added successfully',
-          data: education,
-        });
+        return created(reply, education, 'Education added successfully');
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid input data',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid input data', 'ValidationError');
         }
         throw error;
       }
@@ -232,10 +200,7 @@ const libraryRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!existing) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'Education not found',
-          });
+          return fail(reply, 404, 'Education not found', 'NotFound');
         }
 
         // Prepare update data
@@ -252,17 +217,10 @@ const libraryRoutes: FastifyPluginAsync = async (fastify) => {
           data: updateData,
         });
 
-        return reply.send({
-          message: 'Education updated successfully',
-          data: updated,
-        });
+        return ok(reply, updated, 'Education updated successfully');
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid input data',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid input data', 'ValidationError');
         }
         throw error;
       }
@@ -283,26 +241,17 @@ const libraryRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!existing) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'Education not found',
-          });
+          return fail(reply, 404, 'Education not found', 'NotFound');
         }
 
         await fastify.prisma.userEducation.delete({
           where: { id: params.id },
         });
 
-        return reply.code(200).send({
-          message: 'Education deleted successfully',
-        });
+        return noContent(reply);
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid ID',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid ID', 'ValidationError');
         }
         throw error;
       }
@@ -322,7 +271,7 @@ const libraryRoutes: FastifyPluginAsync = async (fastify) => {
         orderBy: [{ name: 'asc' }],
       });
 
-      return reply.send({ data: skills });
+      return ok(reply, skills);
     },
   });
 
@@ -343,17 +292,10 @@ const libraryRoutes: FastifyPluginAsync = async (fastify) => {
           },
         });
 
-        return reply.code(201).send({
-          message: 'Skill added successfully',
-          data: skill,
-        });
+        return created(reply, skill, 'Skill added successfully');
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid input data',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid input data', 'ValidationError');
         }
         throw error;
       }
@@ -375,10 +317,7 @@ const libraryRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!existing) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'Skill not found',
-          });
+          return fail(reply, 404, 'Skill not found', 'NotFound');
         }
 
         // Prepare update data
@@ -392,17 +331,10 @@ const libraryRoutes: FastifyPluginAsync = async (fastify) => {
           data: updateData,
         });
 
-        return reply.send({
-          message: 'Skill updated successfully',
-          data: updated,
-        });
+        return ok(reply, updated, 'Skill updated successfully');
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid input data',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid input data', 'ValidationError');
         }
         throw error;
       }
@@ -423,26 +355,17 @@ const libraryRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!existing) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'Skill not found',
-          });
+          return fail(reply, 404, 'Skill not found', 'NotFound');
         }
 
         await fastify.prisma.userSkill.delete({
           where: { id: params.id },
         });
 
-        return reply.code(200).send({
-          message: 'Skill deleted successfully',
-        });
+        return noContent(reply);
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid ID',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid ID', 'ValidationError');
         }
         throw error;
       }
@@ -462,7 +385,7 @@ const libraryRoutes: FastifyPluginAsync = async (fastify) => {
         orderBy: [{ name: 'asc' }],
       });
 
-      return reply.send({ data: projects });
+      return ok(reply, projects);
     },
   });
 
@@ -484,17 +407,10 @@ const libraryRoutes: FastifyPluginAsync = async (fastify) => {
           },
         });
 
-        return reply.code(201).send({
-          message: 'Project added successfully',
-          data: project,
-        });
+        return created(reply, project, 'Project added successfully');
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid input data',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid input data', 'ValidationError');
         }
         throw error;
       }
@@ -516,10 +432,7 @@ const libraryRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!existing) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'Project not found',
-          });
+          return fail(reply, 404, 'Project not found', 'NotFound');
         }
 
         // Prepare update data
@@ -534,17 +447,10 @@ const libraryRoutes: FastifyPluginAsync = async (fastify) => {
           data: updateData,
         });
 
-        return reply.send({
-          message: 'Project updated successfully',
-          data: updated,
-        });
+        return ok(reply, updated, 'Project updated successfully');
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid input data',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid input data', 'ValidationError');
         }
         throw error;
       }
@@ -565,26 +471,17 @@ const libraryRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!existing) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'Project not found',
-          });
+          return fail(reply, 404, 'Project not found', 'NotFound');
         }
 
         await fastify.prisma.userProject.delete({
           where: { id: params.id },
         });
 
-        return reply.code(200).send({
-          message: 'Project deleted successfully',
-        });
+        return noContent(reply);
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid ID',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid ID', 'ValidationError');
         }
         throw error;
       }

@@ -1,14 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { Sidebar } from "../Sidebar/Sidebar";
 import { User, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getUser, clearTokens } from "@/lib/auth";
+import { getUser, logout } from "@/lib/auth";
+import { api } from "@/lib/api";
 
 function UserMenu() {
-  const router = useRouter();
   const [user, setUser] = useState<{ email: string } | null>(null);
   const [showMenu, setShowMenu] = useState(false);
 
@@ -16,9 +15,16 @@ function UserMenu() {
     setUser(getUser());
   }, []);
 
-  const handleLogout = () => {
-    clearTokens();
-    router.push("/login");
+  const handleLogout = async () => {
+    setShowMenu(false);
+    try {
+      // Best-effort: revoke all refresh tokens for this user
+      await api.logoutAll();
+    } catch {
+      // Ignore network/server errors; still clear local session
+    } finally {
+      logout();
+    }
   };
 
   return (

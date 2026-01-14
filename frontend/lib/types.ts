@@ -63,7 +63,6 @@ export interface PaginatedResponse<T> {
 }
 
 export interface AuthResponse {
-  message: string;
   user: User;
   accessToken: string;
   refreshToken: string;
@@ -108,6 +107,37 @@ export interface UpdateApplicationInput {
 export type CvTemplate = 'CLEAN_NAVY';
 export type CvSkillLevel = 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED' | 'EXPERT';
 
+export type CvCanvasBlockType =
+  | 'HEADER'
+  | 'SUMMARY'
+  | 'WORK'
+  | 'PROJECTS'
+  | 'SKILLS'
+  | 'EDUCATION';
+
+export interface CvCanvasBlock {
+  id: string;
+  type: CvCanvasBlockType;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  fontScale: number;
+  content: {
+    text: string;
+  };
+}
+
+export interface CvCanvasState {
+  version: 1;
+  page: {
+    format: 'A4';
+    width: number;
+    height: number;
+  };
+  blocks: CvCanvasBlock[];
+}
+
 export interface CvDocument {
   id: string;
   userId: string;
@@ -115,6 +145,7 @@ export interface CvDocument {
   isDefault: boolean;
   template: CvTemplate;
   overrideSummary?: string | null;
+  canvasState?: CvCanvasState | null;
   createdAt: string;
   updatedAt: string;
   workExperiences?: UserWorkExperience[];
@@ -194,6 +225,8 @@ export interface UpdateCvDocumentInput {
   title?: string;
   template?: CvTemplate;
   isDefault?: boolean;
+  overrideSummary?: string | null;
+  canvasState?: CvCanvasState | null;
 }
 
 // Library item input types (for creating/updating master library items)
@@ -369,7 +402,6 @@ export interface SetOpenAiKeyInput {
 }
 
 export interface SetOpenAiKeyResponse {
-  message: string;
   hasKey: boolean;
   last4: string;
 }
@@ -384,11 +416,38 @@ export interface OptimizeCvInput {
 }
 
 export interface OptimizeCvResponse {
-  message: string;
   cvId: string;
   summary: string;
   keySkills: string[];
   roleFitBullets: string[];
+}
+
+// ============================================
+// AI CV Suggest + Apply Types
+// ============================================
+
+export interface AiCvSuggestion {
+  summary: string;
+  selections: {
+    workIds: string[];
+    projectIds: string[];
+    skillIds: string[];
+    educationIds: string[];
+  };
+}
+
+export interface AiSuggestCvResponse {
+  suggestion: AiCvSuggestion;
+}
+
+export interface AiApplyCvRequest {
+  cvId: string;
+  suggestion: AiCvSuggestion;
+  replaceSelection?: boolean;
+}
+
+export interface AiApplyCvResponse {
+  ok: true;
 }
 
 // ============================================

@@ -1,5 +1,8 @@
 import Fastify, { FastifyInstance } from 'fastify';
 import { config } from './config/index.js';
+import { ZodError } from 'zod';
+import { Prisma } from '@prisma/client';
+import { fail } from './utils/httpResponse.js';
 
 // Plugins
 import prismaPlugin from './plugins/prisma.js';
@@ -17,6 +20,7 @@ import libraryRoutes from './modules/library/routes.js';
 import snapshotRoutes from './modules/snapshots/routes.js';
 import openaiRoutes from './modules/openai/routes.js';
 import aiRoutes from './modules/ai/routes.js';
+import accountRoutes from './modules/account/routes.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const fastify = Fastify({
@@ -50,44 +54,48 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(snapshotRoutes);
   await fastify.register(openaiRoutes);
   await fastify.register(aiRoutes);
+  await fastify.register(accountRoutes);
 
   // Global error handler
   fastify.setErrorHandler((error, _request, reply) => {
     fastify.log.error(error);
 
-    // Type guard for Error objects
+    const statusCode = (error as any)?.statusCode ?? 500;
+
+    // Validation errors (Zod)
+    if (error instanceof ZodError) {
+      return fail(reply, 400, 'Invalid request', 'ValidationError');
+    }
+
+    // Prisma-ish errors
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError ||
+      error instanceof Prisma.PrismaClientUnknownRequestError ||
+      error instanceof Prisma.PrismaClientValidationError ||
+      error instanceof Prisma.PrismaClientRustPanicError ||
+      error instanceof Prisma.PrismaClientInitializationError
+    ) {
+      return fail(
+        reply,
+        500,
+        config.app.isDevelopment ? error.message : 'A database error occurred',
+        'DatabaseError'
+      );
+    }
+
     const isError = error instanceof Error;
-    const statusCode = (error as any).statusCode;
-    
-    // Handle Fastify HTTP errors
-    if (statusCode) {
-      return reply.code(statusCode).send({
-        error: isError ? error.name : 'Error',
-        message: isError ? error.message : 'An error occurred',
-      });
-    }
+    const label = (isError && error.name) ? error.name : (statusCode >= 500 ? 'InternalServerError' : 'Error');
+    const message =
+      statusCode >= 500 && !config.app.isDevelopment
+        ? 'An unexpected error occurred'
+        : (isError ? error.message : 'An error occurred');
 
-    // Handle Prisma errors
-    if (isError && error.constructor.name.includes('Prisma')) {
-      return reply.code(500).send({
-        error: 'Database Error',
-        message: config.app.isDevelopment ? error.message : 'An error occurred with the database',
-      });
-    }
-
-    // Generic error
-    return reply.code(500).send({
-      error: 'Internal Server Error',
-      message: config.app.isDevelopment && isError ? error.message : 'An unexpected error occurred',
-    });
+    return fail(reply, statusCode, message, label);
   });
 
   // 404 handler
   fastify.setNotFoundHandler((request, reply) => {
-    return reply.code(404).send({
-      error: 'Not Found',
-      message: `Route ${request.method}:${request.url} not found`,
-    });
+    return fail(reply, 404, `Route ${request.method}:${request.url} not found`, 'NotFound');
   });
 
   return fastify;

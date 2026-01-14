@@ -108,6 +108,7 @@ model CvDocument {
   isDefault      Boolean    @default(false) @map("is_default")
   template       CvTemplate @default(CLEAN_NAVY)
   overrideSummary String?   @db.Text @map("override_summary") // AI-generated summary override
+  canvasState    Json?      @map("canvas_state") // Freeform CV layout + block text overrides
   createdAt      DateTime   @default(now()) @map("created_at")
   updatedAt      DateTime   @updatedAt @map("updated_at")
 

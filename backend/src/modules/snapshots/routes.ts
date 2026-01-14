@@ -5,6 +5,7 @@ import {
   snapshotIdParamSchema,
 } from './schemas.js';
 import { createSnapshotFromCv, getSnapshot, deleteSnapshot } from './service.js';
+import { ok, created, noContent, fail } from '../../utils/httpResponse.js';
 
 const snapshotRoutes: FastifyPluginAsync = async (fastify) => {
   // Create snapshot for an application
@@ -23,33 +24,18 @@ const snapshotRoutes: FastifyPluginAsync = async (fastify) => {
           params.id
         );
 
-        return reply.code(201).send({
-          message: 'CV snapshot created successfully',
-          data: { snapshotId },
-        });
+        return created(reply, { snapshotId }, 'CV snapshot created successfully');
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            statusCode: 400,
-            error: 'Validation Error',
-            message: error.errors.map((e: any) => e.message).join(', '),
-          });
+          return fail(reply, 400, 'Invalid request', 'ValidationError');
         }
 
         if (error.message?.includes('not found') || error.message?.includes('does not belong')) {
-          return reply.code(404).send({
-            statusCode: 404,
-            error: 'Not Found',
-            message: error.message,
-          });
+          return fail(reply, 404, error.message, 'NotFound');
         }
 
         fastify.log.error(error);
-        return reply.code(500).send({
-          statusCode: 500,
-          error: 'Internal Server Error',
-          message: 'Failed to create CV snapshot',
-        });
+        return fail(reply, 500, 'Failed to create CV snapshot', 'InternalServerError');
       }
     },
   });
@@ -86,31 +72,17 @@ const snapshotRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!snapshot) {
-          return reply.code(404).send({
-            statusCode: 404,
-            error: 'Not Found',
-            message: 'No snapshot found for this application',
-          });
+          return fail(reply, 404, 'No snapshot found for this application', 'NotFound');
         }
 
-        return reply.send({
-          data: snapshot,
-        });
+        return ok(reply, snapshot);
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            statusCode: 400,
-            error: 'Validation Error',
-            message: error.errors.map((e: any) => e.message).join(', '),
-          });
+          return fail(reply, 400, 'Invalid request', 'ValidationError');
         }
 
         fastify.log.error(error);
-        return reply.code(500).send({
-          statusCode: 500,
-          error: 'Internal Server Error',
-          message: 'Failed to retrieve CV snapshot',
-        });
+        return fail(reply, 500, 'Failed to retrieve CV snapshot', 'InternalServerError');
       }
     },
   });
@@ -132,33 +104,19 @@ const snapshotRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!snapshot) {
-          return reply.code(404).send({
-            statusCode: 404,
-            error: 'Not Found',
-            message: 'No snapshot found for this application',
-          });
+          return fail(reply, 404, 'No snapshot found for this application', 'NotFound');
         }
 
         await deleteSnapshot(fastify, snapshot.id, userId);
 
-        return reply.send({
-          message: 'CV snapshot deleted successfully',
-        });
+        return noContent(reply);
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            statusCode: 400,
-            error: 'Validation Error',
-            message: error.errors.map((e: any) => e.message).join(', '),
-          });
+          return fail(reply, 400, 'Invalid request', 'ValidationError');
         }
 
         fastify.log.error(error);
-        return reply.code(500).send({
-          statusCode: 500,
-          error: 'Internal Server Error',
-          message: 'Failed to delete CV snapshot',
-        });
+        return fail(reply, 500, 'Failed to delete CV snapshot', 'InternalServerError');
       }
     },
   });
@@ -173,32 +131,18 @@ const snapshotRoutes: FastifyPluginAsync = async (fastify) => {
 
         const snapshot = await getSnapshot(fastify, params.id, userId);
 
-        return reply.send({
-          data: snapshot,
-        });
+        return ok(reply, snapshot);
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            statusCode: 400,
-            error: 'Validation Error',
-            message: error.errors.map((e: any) => e.message).join(', '),
-          });
+          return fail(reply, 400, 'Invalid request', 'ValidationError');
         }
 
         if (error.message?.includes('not found') || error.message?.includes('does not belong')) {
-          return reply.code(404).send({
-            statusCode: 404,
-            error: 'Not Found',
-            message: error.message,
-          });
+          return fail(reply, 404, error.message, 'NotFound');
         }
 
         fastify.log.error(error);
-        return reply.code(500).send({
-          statusCode: 500,
-          error: 'Internal Server Error',
-          message: 'Failed to retrieve CV snapshot',
-        });
+        return fail(reply, 500, 'Failed to retrieve CV snapshot', 'InternalServerError');
       }
     },
   });

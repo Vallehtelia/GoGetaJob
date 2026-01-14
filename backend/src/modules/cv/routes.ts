@@ -7,6 +7,7 @@ import {
   updateInclusionOrderSchema,
   inclusionIdParamSchema,
 } from './schemas.js';
+import { ok, created, noContent, fail } from '../../utils/httpResponse.js';
 
 const cvRoutes: FastifyPluginAsync = async (fastify) => {
   // ============ CV Document Routes ============
@@ -32,7 +33,7 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         ],
       });
 
-      return reply.send({ data: cvs });
+      return ok(reply, cvs);
     },
   });
 
@@ -61,17 +62,19 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
           },
         });
 
-        return reply.code(201).send({
-          message: 'CV created successfully',
-          data: cv,
-        });
+        return created(reply, cv, 'CV created successfully');
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid input data',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid input data', 'ValidationError');
+        }
+        // Helpful message when Prisma Client is out of date
+        if (typeof error?.message === 'string' && error.message.includes('Unknown argument `canvasState`')) {
+          return fail(
+            reply,
+            500,
+            'Server is not migrated for canvasState yet. Run: npx prisma generate && (with DB running) npx prisma db push, then restart backend.',
+            'ServerConfigurationError'
+          );
         }
         throw error;
       }
@@ -120,10 +123,7 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!cv) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'CV not found',
-          });
+          return fail(reply, 404, 'CV not found', 'NotFound');
         }
 
         // Transform to flatten the inclusions
@@ -133,6 +133,8 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
           title: cv.title,
           isDefault: cv.isDefault,
           template: cv.template,
+          overrideSummary: (cv as any).overrideSummary ?? null,
+          canvasState: (cv as any).canvasState ?? null,
           createdAt: cv.createdAt,
           updatedAt: cv.updatedAt,
           workExperiences: cv.workInclusions.map((inc) => ({
@@ -157,14 +159,10 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
           })),
         };
 
-        return reply.send({ data: response });
+        return ok(reply, response);
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid CV ID',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid CV ID', 'ValidationError');
         }
         throw error;
       }
@@ -189,10 +187,7 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!existing) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'CV not found',
-          });
+          return fail(reply, 404, 'CV not found', 'NotFound');
         }
 
         // If setting as default, unset other defaults for this user
@@ -213,23 +208,18 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         if (body.title !== undefined) updateData.title = body.title;
         if (body.template !== undefined) updateData.template = body.template;
         if (body.isDefault !== undefined) updateData.isDefault = body.isDefault;
+        if (body.overrideSummary !== undefined) updateData.overrideSummary = body.overrideSummary;
+        if (body.canvasState !== undefined) updateData.canvasState = body.canvasState;
 
         const cv = await fastify.prisma.cvDocument.update({
           where: { id: params.id },
           data: updateData,
         });
 
-        return reply.send({
-          message: 'CV updated successfully',
-          data: cv,
-        });
+        return ok(reply, cv, 'CV updated successfully');
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid input data',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid input data', 'ValidationError');
         }
         throw error;
       }
@@ -253,26 +243,17 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!existing) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'CV not found',
-          });
+          return fail(reply, 404, 'CV not found', 'NotFound');
         }
 
         await fastify.prisma.cvDocument.delete({
           where: { id: params.id },
         });
 
-        return reply.code(200).send({
-          message: 'CV deleted successfully',
-        });
+        return noContent(reply);
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid CV ID',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid CV ID', 'ValidationError');
         }
         throw error;
       }
@@ -296,10 +277,7 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!cv) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'CV not found',
-          });
+          return fail(reply, 404, 'CV not found', 'NotFound');
         }
 
         // Verify work experience ownership
@@ -308,10 +286,7 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!workExp) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'Work experience not found',
-          });
+          return fail(reply, 404, 'Work experience not found', 'NotFound');
         }
 
         // Check if already included
@@ -325,10 +300,7 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (existing) {
-          return reply.code(400).send({
-            error: 'Already Exists',
-            message: 'This work experience is already in this CV',
-          });
+          return fail(reply, 400, 'This work experience is already in this CV', 'BadRequest');
         }
 
         const inclusion = await fastify.prisma.cvWorkInclusion.create({
@@ -342,17 +314,10 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
           },
         });
 
-        return reply.code(201).send({
-          message: 'Work experience added to CV',
-          data: inclusion,
-        });
+        return created(reply, inclusion, 'Work experience added to CV');
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid input data',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid input data', 'ValidationError');
         }
         throw error;
       }
@@ -373,10 +338,7 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!cv) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'CV not found',
-          });
+          return fail(reply, 404, 'CV not found', 'NotFound');
         }
 
         // Delete inclusion
@@ -388,22 +350,13 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (deleted.count === 0) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'Work experience not in this CV',
-          });
+          return fail(reply, 404, 'Work experience not in this CV', 'NotFound');
         }
 
-        return reply.code(200).send({
-          message: 'Work experience removed from CV',
-        });
+        return noContent(reply);
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid ID',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid ID', 'ValidationError');
         }
         throw error;
       }
@@ -425,10 +378,7 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!cv) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'CV not found',
-          });
+          return fail(reply, 404, 'CV not found', 'NotFound');
         }
 
         // Update order
@@ -443,22 +393,13 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (updated.count === 0) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'Work experience not in this CV',
-          });
+          return fail(reply, 404, 'Work experience not in this CV', 'NotFound');
         }
 
-        return reply.send({
-          message: 'Order updated successfully',
-        });
+        return ok(reply, null, 'Order updated successfully');
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid input data',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid input data', 'ValidationError');
         }
         throw error;
       }
@@ -481,10 +422,7 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!cv) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'CV not found',
-          });
+          return fail(reply, 404, 'CV not found', 'NotFound');
         }
 
         const education = await fastify.prisma.userEducation.findFirst({
@@ -492,10 +430,7 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!education) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'Education not found',
-          });
+          return fail(reply, 404, 'Education not found', 'NotFound');
         }
 
         const existing = await fastify.prisma.cvEducationInclusion.findUnique({
@@ -508,10 +443,7 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (existing) {
-          return reply.code(400).send({
-            error: 'Already Exists',
-            message: 'This education is already in this CV',
-          });
+          return fail(reply, 400, 'This education is already in this CV', 'BadRequest');
         }
 
         const inclusion = await fastify.prisma.cvEducationInclusion.create({
@@ -525,17 +457,10 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
           },
         });
 
-        return reply.code(201).send({
-          message: 'Education added to CV',
-          data: inclusion,
-        });
+        return created(reply, inclusion, 'Education added to CV');
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid input data',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid input data', 'ValidationError');
         }
         throw error;
       }
@@ -555,10 +480,7 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!cv) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'CV not found',
-          });
+          return fail(reply, 404, 'CV not found', 'NotFound');
         }
 
         const deleted = await fastify.prisma.cvEducationInclusion.deleteMany({
@@ -569,22 +491,13 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (deleted.count === 0) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'Education not in this CV',
-          });
+          return fail(reply, 404, 'Education not in this CV', 'NotFound');
         }
 
-        return reply.code(200).send({
-          message: 'Education removed from CV',
-        });
+        return noContent(reply);
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid ID',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid ID', 'ValidationError');
         }
         throw error;
       }
@@ -605,10 +518,7 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!cv) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'CV not found',
-          });
+          return fail(reply, 404, 'CV not found', 'NotFound');
         }
 
         const updated = await fastify.prisma.cvEducationInclusion.updateMany({
@@ -622,22 +532,13 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (updated.count === 0) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'Education not in this CV',
-          });
+          return fail(reply, 404, 'Education not in this CV', 'NotFound');
         }
 
-        return reply.send({
-          message: 'Order updated successfully',
-        });
+        return ok(reply, null, 'Order updated successfully');
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid input data',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid input data', 'ValidationError');
         }
         throw error;
       }
@@ -660,10 +561,7 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!cv) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'CV not found',
-          });
+          return fail(reply, 404, 'CV not found', 'NotFound');
         }
 
         const skill = await fastify.prisma.userSkill.findFirst({
@@ -671,10 +569,7 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!skill) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'Skill not found',
-          });
+          return fail(reply, 404, 'Skill not found', 'NotFound');
         }
 
         const existing = await fastify.prisma.cvSkillInclusion.findUnique({
@@ -687,10 +582,7 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (existing) {
-          return reply.code(400).send({
-            error: 'Already Exists',
-            message: 'This skill is already in this CV',
-          });
+          return fail(reply, 400, 'This skill is already in this CV', 'BadRequest');
         }
 
         const inclusion = await fastify.prisma.cvSkillInclusion.create({
@@ -704,17 +596,10 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
           },
         });
 
-        return reply.code(201).send({
-          message: 'Skill added to CV',
-          data: inclusion,
-        });
+        return created(reply, inclusion, 'Skill added to CV');
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid input data',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid input data', 'ValidationError');
         }
         throw error;
       }
@@ -734,10 +619,7 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!cv) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'CV not found',
-          });
+          return fail(reply, 404, 'CV not found', 'NotFound');
         }
 
         const deleted = await fastify.prisma.cvSkillInclusion.deleteMany({
@@ -748,22 +630,13 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (deleted.count === 0) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'Skill not in this CV',
-          });
+          return fail(reply, 404, 'Skill not in this CV', 'NotFound');
         }
 
-        return reply.code(200).send({
-          message: 'Skill removed from CV',
-        });
+        return noContent(reply);
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid ID',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid ID', 'ValidationError');
         }
         throw error;
       }
@@ -784,10 +657,7 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!cv) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'CV not found',
-          });
+          return fail(reply, 404, 'CV not found', 'NotFound');
         }
 
         const updated = await fastify.prisma.cvSkillInclusion.updateMany({
@@ -801,22 +671,13 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (updated.count === 0) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'Skill not in this CV',
-          });
+          return fail(reply, 404, 'Skill not in this CV', 'NotFound');
         }
 
-        return reply.send({
-          message: 'Order updated successfully',
-        });
+        return ok(reply, null, 'Order updated successfully');
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid input data',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid input data', 'ValidationError');
         }
         throw error;
       }
@@ -839,10 +700,7 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!cv) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'CV not found',
-          });
+          return fail(reply, 404, 'CV not found', 'NotFound');
         }
 
         const project = await fastify.prisma.userProject.findFirst({
@@ -850,10 +708,7 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!project) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'Project not found',
-          });
+          return fail(reply, 404, 'Project not found', 'NotFound');
         }
 
         const existing = await fastify.prisma.cvProjectInclusion.findUnique({
@@ -866,10 +721,7 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (existing) {
-          return reply.code(400).send({
-            error: 'Already Exists',
-            message: 'This project is already in this CV',
-          });
+          return fail(reply, 400, 'This project is already in this CV', 'BadRequest');
         }
 
         const inclusion = await fastify.prisma.cvProjectInclusion.create({
@@ -883,17 +735,10 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
           },
         });
 
-        return reply.code(201).send({
-          message: 'Project added to CV',
-          data: inclusion,
-        });
+        return created(reply, inclusion, 'Project added to CV');
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid input data',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid input data', 'ValidationError');
         }
         throw error;
       }
@@ -913,10 +758,7 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!cv) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'CV not found',
-          });
+          return fail(reply, 404, 'CV not found', 'NotFound');
         }
 
         const deleted = await fastify.prisma.cvProjectInclusion.deleteMany({
@@ -927,22 +769,13 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (deleted.count === 0) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'Project not in this CV',
-          });
+          return fail(reply, 404, 'Project not in this CV', 'NotFound');
         }
 
-        return reply.code(200).send({
-          message: 'Project removed from CV',
-        });
+        return noContent(reply);
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid ID',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid ID', 'ValidationError');
         }
         throw error;
       }
@@ -963,10 +796,7 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (!cv) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'CV not found',
-          });
+          return fail(reply, 404, 'CV not found', 'NotFound');
         }
 
         const updated = await fastify.prisma.cvProjectInclusion.updateMany({
@@ -980,22 +810,13 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         if (updated.count === 0) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'Project not in this CV',
-          });
+          return fail(reply, 404, 'Project not in this CV', 'NotFound');
         }
 
-        return reply.send({
-          message: 'Order updated successfully',
-        });
+        return ok(reply, null, 'Order updated successfully');
       } catch (error: any) {
         if (error.name === 'ZodError') {
-          return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid input data',
-            details: error.errors,
-          });
+          return fail(reply, 400, 'Invalid input data', 'ValidationError');
         }
         throw error;
       }

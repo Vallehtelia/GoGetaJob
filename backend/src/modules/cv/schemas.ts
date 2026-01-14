@@ -13,10 +13,42 @@ export const createCvDocumentSchema = z.object({
 
 export type CreateCvDocumentInput = z.infer<typeof createCvDocumentSchema>;
 
+// ============ Canvas State Schemas (Freeform CV editor) ============
+
+const canvasBlockSchema = z.object({
+  id: z.string().min(1).max(64),
+  type: z.enum(['HEADER', 'SUMMARY', 'WORK', 'PROJECTS', 'SKILLS', 'EDUCATION']),
+  x: z.number().min(0).max(5000),
+  y: z.number().min(0).max(5000),
+  w: z.number().min(50).max(5000),
+  h: z.number().min(30).max(5000),
+  fontScale: z.number().min(0.5).max(2.5).default(1),
+  content: z.object({
+    text: z.string().max(8000),
+  }),
+});
+
+export const canvasStateSchema = z.object({
+  version: z.number().int().min(1).max(10),
+  page: z.object({
+    format: z.enum(['A4']).default('A4'),
+    width: z.number().int().min(300).max(2000),
+    height: z.number().int().min(300).max(3000),
+  }),
+  blocks: z.array(canvasBlockSchema).min(1).max(12),
+});
+
 export const updateCvDocumentSchema = z.object({
   title: z.string().min(1).max(120).optional(),
   template: cvTemplateSchema.optional(),
   isDefault: z.boolean().optional(),
+  overrideSummary: z
+    .string()
+    .trim()
+    .max(2000, 'Summary must not exceed 2000 characters')
+    .optional()
+    .nullable(),
+  canvasState: canvasStateSchema.optional().nullable(),
 });
 
 export type UpdateCvDocumentInput = z.infer<typeof updateCvDocumentSchema>;

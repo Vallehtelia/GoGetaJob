@@ -12,14 +12,34 @@ const securityPlugin: FastifyPluginAsync = async (fastify) => {
   });
 
   // CORS
+  const configuredOrigins = config.cors.origins;
+  const localDevOriginRegex = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+
+  fastify.log.info(
+    { env: config.app.env, configuredOrigins },
+    'CORS configured origins loaded'
+  );
+
   await fastify.register(cors, {
     origin: (origin, cb) => {
-      // Allow requests from configured origins or no origin (same-origin)
-      if (!origin || config.cors.origins.includes(origin)) {
-        cb(null, true);
-      } else {
-        cb(new Error('Not allowed by CORS'), false);
+      // Allow missing Origin (same-origin / server-to-server)
+      if (!origin) return cb(null, true);
+
+      // Development-friendly: allow localhost/127.0.0.1 on any port,
+      // plus any explicitly configured origins
+      if (config.app.isDevelopment) {
+        if (localDevOriginRegex.test(origin) || configuredOrigins.includes(origin)) {
+          return cb(null, true);
+        }
+        fastify.log.warn({ origin, configuredOrigins }, 'CORS origin rejected (development)');
+        return cb(null, false);
       }
+
+      // Production: strict allowlist only (plus missing origin handled above)
+      if (configuredOrigins.includes(origin)) return cb(null, true);
+
+      // IMPORTANT: do not throw, just disallow cleanly
+      return cb(null, false);
     },
     credentials: true,
   });

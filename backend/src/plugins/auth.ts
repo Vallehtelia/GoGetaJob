@@ -2,6 +2,7 @@ import { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import fastifyJwt from '@fastify/jwt';
 import fp from 'fastify-plugin';
 import { config } from '../config/index.js';
+import { fail } from '../utils/httpResponse.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -30,10 +31,7 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
     try {
       await request.jwtVerify();
     } catch (err) {
-      return reply.code(401).send({
-        error: 'Unauthorized',
-        message: 'Invalid or expired token',
-      });
+      return fail(reply, 401, 'Invalid or expired token', 'Unauthorized');
     }
   });
 };

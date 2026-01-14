@@ -42,12 +42,7 @@ export default function RegisterPage() {
       // Redirect to dashboard
       router.push("/dashboard");
     } catch (err: any) {
-      let errorMsg = "";
-      if (err.details && Array.isArray(err.details)) {
-        errorMsg = err.details.map((d: any) => d.message).join(", ");
-      } else {
-        errorMsg = err.message || "Registration failed. Please try again.";
-      }
+      const errorMsg = err.message || "Registration failed. Please try again.";
       setError(errorMsg);
       toast.error(errorMsg);
     } finally {
@@ -61,7 +56,7 @@ export default function RegisterPage() {
         {/* Logo/Brand */}
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-pink-500 to-blue-500 bg-clip-text text-transparent">
-            GoGetaJob
+            GoGet-a-Job
           </h1>
           <p className="text-muted-foreground">Start tracking your job search today</p>
         </div>
