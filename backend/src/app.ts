@@ -23,6 +23,8 @@ import aiRoutes from './modules/ai/routes.js';
 import accountRoutes from './modules/account/routes.js';
 import feedbackRoutes from './modules/feedback/routes.js';
 import adminFeedbackRoutes from './modules/admin/feedback/routes.js';
+import analyticsRoutes from './modules/analytics/routes.js';
+import adminAnalyticsRoutes from './modules/admin/analytics/routes.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const fastify = Fastify({
@@ -59,6 +61,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(accountRoutes);
   await fastify.register(feedbackRoutes);
   await fastify.register(adminFeedbackRoutes, { prefix: '/admin' });
+  await fastify.register(analyticsRoutes);
+  await fastify.register(adminAnalyticsRoutes, { prefix: '/admin' });
 
   // Global error handler
   fastify.setErrorHandler((error, _request, reply) => {

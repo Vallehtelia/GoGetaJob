@@ -26,7 +26,12 @@ export function Sidebar({ collapsed, onToggle, isAdmin }: SidebarProps) {
     { name: "Applications", href: "/applications", icon: Briefcase },
     { name: "CV", href: "/cv", icon: FileText },
     { name: "Settings", href: "/settings", icon: Settings },
-    ...(isAdmin ? [{ name: "Admin", href: "/admin/feedback", icon: Inbox }] : []),
+    ...(isAdmin
+      ? [
+          { name: "Admin Dashboard", href: "/admin", icon: Inbox },
+          { name: "Feedback Inbox", href: "/admin/feedback", icon: Inbox },
+        ]
+      : []),
   ];
 
   return (

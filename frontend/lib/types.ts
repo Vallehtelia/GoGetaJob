@@ -516,3 +516,22 @@ export interface AdminFeedbackListData {
   items: AdminFeedbackItem[];
   pagination: PaginationMeta;
 }
+
+// ============================================
+// Analytics (Admin)
+// ============================================
+
+export interface AdminAnalyticsOverview {
+  today: {
+    dau: number;
+    sessions: number;
+    pageViews: number;
+    avgSessionSeconds: number;
+  };
+  series: Array<{
+    date: string; // YYYY-MM-DD
+    dau: number;
+    pageViews: number;
+    sessions: number;
+  }>;
+}

@@ -30,16 +30,18 @@ model User {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  refreshTokens   RefreshToken[]
-  jobApplications JobApplication[]
-  cvDocuments     CvDocument[]
-  workExperiences UserWorkExperience[]
-  educations      UserEducation[]
-  skills          UserSkill[]
-  projects        UserProject[]
-  cvSnapshots     CvSnapshot[]
-  openAiKey       OpenAiKey?
-  feedbacks       Feedback[]
+  refreshTokens     RefreshToken[]
+  jobApplications   JobApplication[]
+  cvDocuments       CvDocument[]
+  workExperiences   UserWorkExperience[]
+  educations        UserEducation[]
+  skills            UserSkill[]
+  projects          UserProject[]
+  cvSnapshots       CvSnapshot[]
+  openAiKey         OpenAiKey?
+  feedbacks         Feedback[]
+  activitySessions  ActivitySession[]
+  activityPageViews ActivityPageView[]
 
   @@map("users")
 }
@@ -143,6 +145,39 @@ model Feedback {
 
   @@index([userId, createdAt])
   @@map("feedback")
+}
+
+model ActivitySession {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  startedAt  DateTime  @default(now()) @map("started_at")
+  lastSeenAt DateTime  @default(now()) @map("last_seen_at")
+  endedAt    DateTime? @map("ended_at")
+  userAgent  String?   @map("user_agent") @db.VarChar(500)
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pageViews ActivityPageView[]
+
+  @@index([userId, startedAt])
+  @@index([lastSeenAt])
+  @@map("activity_sessions")
+}
+
+model ActivityPageView {
+  id        String   @id @default(uuid())
+  sessionId String   @map("session_id")
+  userId    String   @map("user_id")
+  path      String   @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  session ActivitySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([path, createdAt])
+  @@index([sessionId, createdAt])
+  @@map("activity_page_views")
 }
 
 // User Work Experience (Master Library)

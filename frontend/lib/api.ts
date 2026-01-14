@@ -48,6 +48,7 @@ import type {
   Feedback,
   SubmitFeedbackInput,
   AdminFeedbackListData,
+  AdminAnalyticsOverview,
 } from './types';
 
 // Get API base URL from env or fallback to localhost
@@ -315,6 +316,44 @@ class ApiClient {
 
     const endpoint = qs.toString() ? `/admin/feedback?${qs.toString()}` : '/admin/feedback';
     return this.request<AdminFeedbackListData>(endpoint, { method: 'GET' });
+  }
+
+  async adminGetAnalyticsOverview(days: number = 7): Promise<AdminAnalyticsOverview> {
+    const qs = new URLSearchParams();
+    qs.set('days', String(days));
+    return this.request<AdminAnalyticsOverview>(`/admin/analytics/overview?${qs.toString()}`, { method: 'GET' });
+  }
+
+  // ============================================
+  // Analytics ingestion (client-side tracking)
+  // ============================================
+
+  async analyticsSessionStart(sessionId?: string): Promise<{ sessionId: string }> {
+    return this.request<{ sessionId: string }>('/analytics/session/start', {
+      method: 'POST',
+      body: JSON.stringify(sessionId ? { sessionId } : {}),
+    });
+  }
+
+  async analyticsSessionHeartbeat(sessionId: string): Promise<void> {
+    await this.request<void>('/analytics/session/heartbeat', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId }),
+    });
+  }
+
+  async analyticsSessionEnd(sessionId: string): Promise<void> {
+    await this.request<void>('/analytics/session/end', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId }),
+    });
+  }
+
+  async analyticsPageview(sessionId: string, path: string): Promise<void> {
+    await this.request<void>('/analytics/pageview', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId, path }),
+    });
   }
 
   async getMe(): Promise<User> {

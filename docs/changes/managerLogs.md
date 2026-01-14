@@ -78,3 +78,14 @@ Admin Phase 1–2 shipped: admin gating + admin feedback inbox with filters/pagi
 Next UX improvement identified: add a feedback details view so long messages are fully readable (row click → modal/drawer), without expanding scope into moderation/triage yet.
 ----------------------------------------------------------------------
 
+2026-01-14
+
+Admin Phase 1–2 completed (admin gating + feedback inbox) and enhanced with a feedback details modal.
+
+Proceeding to Admin Phase 3–4:
+
+Phase 3: lightweight internal activity tracking (sessions + page views) with low write volume and privacy-conscious fields.
+
+Phase 4: admin analytics dashboard consuming aggregated metrics (DAU, sessions, page views, avg session length, 7-day trends), fully admin-gated server-side and hidden in UI for non-admins.
+----------------------------------------------------------------------
+
