@@ -174,6 +174,8 @@ export default function CVEditorPage() {
         toast.error('No OpenAI API key saved. Add it in Settings → API Settings.');
         setShowAiDrawer(false);
         router.push('/settings?tab=api');
+      } else if (errorData?.statusCode === 429) {
+        toast.error("You’re sending requests too quickly. Please wait a moment and try again.");
       } else {
         toast.error(errorData?.message || error.message || 'Failed to generate summary');
       }

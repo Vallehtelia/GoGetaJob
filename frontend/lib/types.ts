@@ -7,6 +7,7 @@ export interface User {
   email: string;
   createdAt: string;
   updatedAt: string;
+  isAdmin?: boolean;
 }
 
 export interface UserProfile {
@@ -462,4 +463,56 @@ export interface ChatMessageInput {
 export interface ChatMessageResponse {
   message: string;
   conversationId: string | null;
+}
+
+// ============================================
+// Feedback
+// ============================================
+
+export type FeedbackType = 'bug' | 'feature' | 'other';
+
+export interface Feedback {
+  id: string;
+  userId: string;
+  type: FeedbackType;
+  message: string;
+  pagePath: string | null;
+  userAgent: string | null;
+  createdAt: string;
+}
+
+export interface SubmitFeedbackInput {
+  type: FeedbackType;
+  message: string;
+  pagePath?: string;
+  userAgent?: string;
+}
+
+// ============================================
+// Admin: Feedback Inbox
+// ============================================
+
+export interface AdminFeedbackItem {
+  id: string;
+  type: FeedbackType;
+  message: string;
+  pagePath: string | null;
+  userAgent: string | null;
+  createdAt: string;
+  user: {
+    id: string;
+    email: string;
+  };
+}
+
+export interface PaginationMeta {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
+export interface AdminFeedbackListData {
+  items: AdminFeedbackItem[];
+  pagination: PaginationMeta;
 }

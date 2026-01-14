@@ -92,6 +92,14 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         // Create tokens
         const { accessToken, refreshToken } = await createTokens(fastify, user.id);
 
+        const adminRows = await fastify.prisma.$queryRaw<{ is_admin: boolean }[]>`
+          SELECT is_admin
+          FROM users
+          WHERE id = ${user.id}
+          LIMIT 1
+        `;
+        const isAdmin = adminRows[0]?.is_admin ?? false;
+
         return ok(
           reply,
           {
@@ -99,6 +107,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
               id: user.id,
               email: user.email,
               createdAt: user.createdAt,
+              isAdmin,
             },
             accessToken,
             refreshToken,
@@ -232,21 +241,27 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     handler: async (request, reply) => {
       const userId = request.user.userId;
 
-      const user = await fastify.prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          email: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      });
+      const rows = await fastify.prisma.$queryRaw<
+        { id: string; email: string; created_at: Date; updated_at: Date; is_admin: boolean }[]
+      >`
+        SELECT id, email, created_at, updated_at, is_admin
+        FROM users
+        WHERE id = ${userId}
+        LIMIT 1
+      `;
+      const row = rows[0];
 
-      if (!user) {
+      if (!row) {
         return fail(reply, 404, 'User not found', 'NotFound');
       }
 
-      return ok(reply, user);
+      return ok(reply, {
+        id: row.id,
+        email: row.email,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        isAdmin: row.is_admin,
+      });
     },
   });
 };

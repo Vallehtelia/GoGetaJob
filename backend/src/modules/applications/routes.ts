@@ -12,6 +12,7 @@ const applicationsRoutes: FastifyPluginAsync = async (fastify) => {
   // Create application
   fastify.post('/applications', {
     onRequest: [fastify.authenticate],
+    bodyLimit: 256 * 1024, // 256kb
     handler: async (request, reply) => {
       try {
         const userId = request.user.userId;
@@ -138,6 +139,7 @@ const applicationsRoutes: FastifyPluginAsync = async (fastify) => {
   // Update application
   fastify.patch('/applications/:id', {
     onRequest: [fastify.authenticate],
+    bodyLimit: 256 * 1024, // 256kb
     handler: async (request, reply) => {
       try {
         const userId = request.user.userId;

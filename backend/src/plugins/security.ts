@@ -49,6 +49,12 @@ const securityPlugin: FastifyPluginAsync = async (fastify) => {
     global: false, // We'll apply it per-route
     max: config.security.rateLimit.max,
     timeWindow: config.security.rateLimit.timeWindow,
+    errorResponseBuilder: (_req, context) => {
+      const err = new Error('Too many requests');
+      (err as any).statusCode = context.statusCode;
+      err.name = 'RateLimit';
+      return err;
+    },
   });
 
   fastify.log.info('✅ Security plugins loaded');

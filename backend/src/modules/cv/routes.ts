@@ -172,6 +172,7 @@ const cvRoutes: FastifyPluginAsync = async (fastify) => {
   // Update CV document
   fastify.patch('/cv/:id', {
     onRequest: [fastify.authenticate],
+    bodyLimit: 512 * 1024, // 512kb (canvasState can be large)
     handler: async (request, reply) => {
       try {
         const userId = request.user.userId;

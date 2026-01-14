@@ -22,10 +22,24 @@ const chatbotSystemPrompt = readFileSync(chatbotPromptPath, 'utf-8');
 const cvSuggestPromptPath = join(process.cwd(), 'src/ai/prompts/cv_suggest.system.md');
 const cvSuggestSystemPrompt = readFileSync(cvSuggestPromptPath, 'utf-8');
 
+const CHAT_BODY_LIMIT_BYTES = 256 * 1024; // 256kb
+const AI_CV_BODY_LIMIT_BYTES = 512 * 1024; // 512kb
+
+const aiRateLimitKey = (req: any) => req.user?.userId ?? req.ip;
+
 const aiRoutes: FastifyPluginAsync = async (fastify) => {
   // CV Suggest endpoint: generate summary + suggested library IDs (no changes applied yet)
   fastify.post('/ai/cv/suggest', {
     onRequest: [fastify.authenticate],
+    bodyLimit: AI_CV_BODY_LIMIT_BYTES,
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: '10 minutes',
+        hook: 'preHandler',
+        keyGenerator: aiRateLimitKey,
+      },
+    },
     handler: async (request, reply) => {
       const userId = request.user.userId;
       try {
@@ -138,6 +152,15 @@ const aiRoutes: FastifyPluginAsync = async (fastify) => {
   // CV Apply endpoint: apply suggestion atomically (summary + inclusions)
   fastify.post('/ai/cv/apply', {
     onRequest: [fastify.authenticate],
+    bodyLimit: AI_CV_BODY_LIMIT_BYTES,
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: '10 minutes',
+        hook: 'preHandler',
+        keyGenerator: aiRateLimitKey,
+      },
+    },
     handler: async (request, reply) => {
       const userId = request.user.userId;
       try {
@@ -254,6 +277,15 @@ const aiRoutes: FastifyPluginAsync = async (fastify) => {
   // Optimize CV summary using AI
   fastify.post('/ai/cv/optimize', {
     onRequest: [fastify.authenticate],
+    bodyLimit: AI_CV_BODY_LIMIT_BYTES,
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: '10 minutes',
+        hook: 'preHandler',
+        keyGenerator: aiRateLimitKey,
+      },
+    },
     handler: async (request, reply) => {
       const startTime = Date.now();
       const userId = request.user.userId;
@@ -510,6 +542,15 @@ const aiRoutes: FastifyPluginAsync = async (fastify) => {
   // Chat endpoint
   fastify.post('/ai/chat', {
     onRequest: [fastify.authenticate],
+    bodyLimit: CHAT_BODY_LIMIT_BYTES,
+    config: {
+      rateLimit: {
+        max: 20,
+        timeWindow: '10 minutes',
+        hook: 'preHandler',
+        keyGenerator: aiRateLimitKey,
+      },
+    },
     handler: async (request, reply) => {
       const startTime = Date.now();
       const userId = request.user.userId;

@@ -8,24 +8,26 @@ import {
   FileText,
   Settings, 
   ChevronLeft, 
-  ChevronRight 
+  ChevronRight,
+  Inbox
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
+  isAdmin?: boolean;
 }
 
-const navItems = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Applications", href: "/applications", icon: Briefcase },
-  { name: "CV", href: "/cv", icon: FileText },
-  { name: "Settings", href: "/settings", icon: Settings },
-];
-
-export function Sidebar({ collapsed, onToggle }: SidebarProps) {
+export function Sidebar({ collapsed, onToggle, isAdmin }: SidebarProps) {
   const pathname = usePathname();
+  const navItems = [
+    { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    { name: "Applications", href: "/applications", icon: Briefcase },
+    { name: "CV", href: "/cv", icon: FileText },
+    { name: "Settings", href: "/settings", icon: Settings },
+    ...(isAdmin ? [{ name: "Admin", href: "/admin/feedback", icon: Inbox }] : []),
+  ];
 
   return (
     <aside

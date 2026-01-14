@@ -45,6 +45,9 @@ import type {
   AiApplyCvResponse,
   ChatMessageInput,
   ChatMessageResponse,
+  Feedback,
+  SubmitFeedbackInput,
+  AdminFeedbackListData,
 } from './types';
 
 // Get API base URL from env or fallback to localhost
@@ -275,6 +278,43 @@ class ApiClient {
     await this.request<void>('/account', {
       method: 'DELETE',
     });
+  }
+
+  // ============================================
+  // Feedback
+  // ============================================
+
+  async submitFeedback(input: SubmitFeedbackInput): Promise<Feedback> {
+    return this.request<Feedback>('/feedback', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  async listMyFeedback(): Promise<Feedback[]> {
+    return this.request<Feedback[]>('/feedback', {
+      method: 'GET',
+    });
+  }
+
+  async adminListFeedback(params?: {
+    type?: 'bug' | 'feature' | 'other';
+    q?: string;
+    userId?: string;
+    page?: number;
+    pageSize?: number;
+    sort?: 'newest' | 'oldest';
+  }): Promise<AdminFeedbackListData> {
+    const qs = new URLSearchParams();
+    if (params?.type) qs.set('type', params.type);
+    if (params?.q) qs.set('q', params.q);
+    if (params?.userId) qs.set('userId', params.userId);
+    if (params?.page) qs.set('page', String(params.page));
+    if (params?.pageSize) qs.set('pageSize', String(params.pageSize));
+    if (params?.sort) qs.set('sort', params.sort);
+
+    const endpoint = qs.toString() ? `/admin/feedback?${qs.toString()}` : '/admin/feedback';
+    return this.request<AdminFeedbackListData>(endpoint, { method: 'GET' });
   }
 
   async getMe(): Promise<User> {

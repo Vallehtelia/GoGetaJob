@@ -21,6 +21,8 @@ import snapshotRoutes from './modules/snapshots/routes.js';
 import openaiRoutes from './modules/openai/routes.js';
 import aiRoutes from './modules/ai/routes.js';
 import accountRoutes from './modules/account/routes.js';
+import feedbackRoutes from './modules/feedback/routes.js';
+import adminFeedbackRoutes from './modules/admin/feedback/routes.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const fastify = Fastify({
@@ -55,6 +57,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(openaiRoutes);
   await fastify.register(aiRoutes);
   await fastify.register(accountRoutes);
+  await fastify.register(feedbackRoutes);
+  await fastify.register(adminFeedbackRoutes, { prefix: '/admin' });
 
   // Global error handler
   fastify.setErrorHandler((error, _request, reply) => {
@@ -65,6 +69,16 @@ export async function buildApp(): Promise<FastifyInstance> {
     // Validation errors (Zod)
     if (error instanceof ZodError) {
       return fail(reply, 400, 'Invalid request', 'ValidationError');
+    }
+
+    // Rate limit errors
+    if (statusCode === 429) {
+      return fail(reply, 429, 'Too many requests', 'RateLimit');
+    }
+
+    // Request body too large
+    if ((error as any)?.code === 'FST_ERR_CTP_BODY_TOO_LARGE' || statusCode === 413) {
+      return fail(reply, 413, 'Request too large', 'PayloadTooLarge');
     }
 
     // Prisma-ish errors

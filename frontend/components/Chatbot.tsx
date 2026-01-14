@@ -101,6 +101,8 @@ export function Chatbot() {
       if (errorData?.error === "OpenAiKeyNotSet") {
         toast.error("No OpenAI API key saved. Add it in Settings → API Settings.");
         setHasOpenAiKey(false);
+      } else if (errorData?.statusCode === 429) {
+        toast.error("You’re sending requests too quickly. Please wait a moment and try again.");
       } else {
         toast.error(errorData?.message || error.message || "Failed to send message");
       }
